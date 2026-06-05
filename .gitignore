@@ -1,0 +1,27 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+.fseventsd
+.DocumentRevisions-V100
+.TemporaryItems
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+
+# Local/editor state
+.env
+.env.*
+!.env.example
+.vscode/
+.idea/
+
+# Build/cache outputs
+dist/
+build/
+target/
+node_modules/
+.cache/
+coverage/

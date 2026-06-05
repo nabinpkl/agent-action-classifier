@@ -1,0 +1,62 @@
+#!/bin/sh
+# Pre-commit hook: enforce file-size limit and prompt an AGENTS.md re-check.
+# Checks the STAGED content (exactly what is about to be committed), not the
+# working tree. Install once: git config core.hooksPath .githooks
+
+MAX_LINES=500
+fail=0
+
+# Staged, non-deleted files (Added/Copied/Modified).
+staged=$(git diff --cached --name-only --diff-filter=ACM)
+
+# Files git treats as binary report "-" for added/deleted in numstat. A line
+# limit is a source-readability rule; counting newline bytes in an image (.icns,
+# .png) is meaningless and false-fails, so binaries are exempt.
+binary=$(git diff --cached --numstat --diff-filter=ACM | awk '$1 == "-" && $2 == "-" { print $3 }')
+is_binary() {
+	for b in $binary; do
+		[ "$b" = "$1" ] && return 0
+	done
+	return 1
+}
+
+echo "── pre-commit: file-size check (max ${MAX_LINES} lines) ──"
+
+for file in $staged; do
+	is_binary "$file" && continue
+	# Count lines of the staged blob, not the working-tree copy.
+	lines=$(git show ":$file" 2>/dev/null | wc -l | tr -d ' ')
+	[ -z "$lines" ] && continue
+	if [ "$lines" -gt "$MAX_LINES" ]; then
+		over=$((lines - MAX_LINES))
+		echo "  ✗ $file — $lines lines ($over over the limit)"
+		fail=1
+	fi
+done
+
+if [ "$fail" -eq 1 ]; then
+	echo ""
+	echo "FAIL: one or more files exceed ${MAX_LINES} lines."
+	echo "What to do: a file this long has likely grown past one concept."
+	echo "  - Find a self-contained cluster inside it and extract it to a new,"
+	echo "    literally-named file (see AGENTS.md → 'File Size & Splitting')."
+	echo "  - Split at a natural seam, never mid-concept. Each new file's name"
+	echo "    must self-describe its slice. If you can't name the split cleanly,"
+	echo "    it isn't ready to split — rethink the boundary."
+	echo "  - Re-stage and commit again."
+else
+	echo "  ✓ all staged files within ${MAX_LINES} lines"
+fi
+
+echo ""
+echo "── Before you commit: re-check AGENTS.md against this diff ──"
+echo "Read AGENTS.md and verify the staged change obeys the Do's and Don'ts:"
+echo "  - No silent fallbacks / error-swallowing — failures surface loudly."
+echo "  - No v0 backward-compat shims, versioning, or deprecation paths."
+echo "  - No new utils/helpers/core/manager or near-duplicate concept names."
+echo "  - Literal, greppable file/folder names; one concept per file."
+echo "  - Commit subject is type(scope): summary with the why in the body."
+echo "Review the diff with:  git diff --cached"
+echo ""
+
+exit $fail
