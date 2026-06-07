@@ -5,6 +5,7 @@ and an organization policy, it decides `allow / deny / escalate / flag`, records
 [OWASP Agentic](https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/)
 clause fired and why, and emits an audit-defensible decision log.
 
+> [!WARNING]
 > ## ⚠️ Work in progress, experimental, not for production
 >
 > This is an **actively-developed learning project**. It is **experimental**, the

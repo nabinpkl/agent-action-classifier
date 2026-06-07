@@ -20,6 +20,8 @@ These counter known agent tendencies. Re-read this list when deep in a long task
 - Treat these rules as mutable working agreements. → if a rule blocks the work or has gone stale, propose the AGENTS.md edit in the same change; never silently work around it or defend it with "AGENTS.md says so". The code is the source of truth; this file is meta-guidance over it.
 - Surface a rule-vs-code contradiction; don't silently obey the rule. → if this file says one thing and the code does another, flag the mismatch and say which side should change — don't treat AGENTS.md as authoritative over reality.
 - Surface architectural drift instead of building on the wrong layer. → when a feature means stacking on a primitive that no longer fits, say "this layer is fighting us, here's a cleaner shape and the tradeoffs" rather than hard-layering on top. Proposing a big refactor is the job, not overstepping.
+- Write tests only for desired behavior of the current architecture; do not write tests that assert the absence of previous architectural patterns; add/refer to ADRs for historical context.”
+
 
 **Don't**
 - Don't add silent fallbacks, placeholder/default-on-error data, or error-swallowing. → no `load_file(p).unwrap_or_default()`, no `let _ = risky();` to mute a warning, no empty `match ... { Err(_) => {} }`. Let the `Err` propagate.
@@ -32,6 +34,8 @@ These counter known agent tendencies. Re-read this list when deep in a long task
 - Don't build god files. → one file doing parsing + state + IO gets split by concern, not left to grow into a 1000-line file.
 - Don't hardcode tunable values. → model names, thresholds, paths, and prompts go through config, not literals sprinkled across source. Protocol constants stay inline.
 - Don't add toggle/mode flags that change trust or data semantics. → different behavior comes from a different entry point or type, not a `if v2 { ... }` switch.
+
+
 
 ## Project Docs (read before project work)
 
