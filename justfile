@@ -33,3 +33,11 @@ fmt:
 # stage-1 latency benchmark (reference-or-frontier); lands with benches/
 bench:
     cargo bench --workspace
+
+# repo-alignment deterministic graders (post-hoc adherence audit; see docs/adr/0013)
+adherence:
+    repo_alignment/adherence_graders.sh
+
+# bench the repo-alignment hook's bounded transcript tail-scan
+hook-bench:
+    repo_alignment/hook_bench.sh

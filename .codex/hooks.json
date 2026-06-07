@@ -1,0 +1,27 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "apply_patch",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CODEX_PROJECT_DIR}/repo_alignment/pre_edit_nudge.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CODEX_PROJECT_DIR}/repo_alignment/end_of_turn_review.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}
