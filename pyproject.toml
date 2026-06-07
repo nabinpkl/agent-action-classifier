@@ -1,3 +1,7 @@
+[build-system]
+requires = ["maturin>=1.13,<2"]
+build-backend = "maturin"
+
 [project]
 name = "agent-action-classifier"
 version = "0.0.0"
@@ -5,10 +9,14 @@ description = "Python host for the agent-action governance classifier: PEP adapt
 requires-python = ">=3.13"
 dependencies = []
 
-# Not built/installed yet: there is no PyO3 binding to bundle. When the binding crate
-# lands, switch this to a maturin build-system and flip `package` to true.
-[tool.uv]
-package = false
+# maturin builds the policy_decision_py cdylib into this wheel. It cannot auto-locate a
+# crate in a workspace (maturin#1372), so it is pointed at the binding via manifest-path;
+# the compiled module is the private `agent_action_classifier._core`.
+[tool.maturin]
+python-source = "python"
+manifest-path = "crates/policy_decision_py/Cargo.toml"
+module-name = "agent_action_classifier._core"
+features = ["policy_decision_py/extension-module"]
 
 [dependency-groups]
 # Dev tooling pinned per the dependency-vetting on 2026-06-06 (maintenance + supply

@@ -5,7 +5,7 @@ requires-python = ">=3.13"
 [[package]]
 name = "agent-action-classifier"
 version = "0.0.0"
-source = { virtual = "." }
+source = { editable = "." }
 
 [package.dev-dependencies]
 dev = [

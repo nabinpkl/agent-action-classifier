@@ -14,9 +14,11 @@ Current iteration task list for `agent-action-classifier`.
 1. [x] **Externalize the conformance corpus to JSON.** Done: `corpus/asi05/*.json`
    replayed through `decide`; serde DTOs + anyhow loader at the edge (test-side),
    core stays serde-free. See ADR-0010. (thiserror deferred to the host PAP boundary.)
-2. [ ] **Add the PyO3 binding crate** (promotes the crate to a workspace; keeps the
-   core free of FFI types) so the Python host actually calls `decide`. Measure the
-   FFI-crossing overhead success bar (ref: pydantic-core / polars).
+2. [x] **Add the PyO3 binding crate.** Done: workspace split (ADR-0011), `crates/
+   policy_decision_py` cdylib exposes `decide` over a JSON wire; `from
+   agent_action_classifier import decide` works end-to-end. FFI round-trip ~8.7 us/call
+   incl. JSON marshalling (negligible vs the LLM budget; isolated stage-1 bench still to
+   come).
 3. [ ] **Wire the semantic lane:** host LLM judge for `Escalate` verdicts (exercises
    R4 end-to-end) plus its graded eval (agreement target 80-90%, never exact-match).
 

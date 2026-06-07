@@ -31,3 +31,9 @@ coverage/
 
 # Tool caches
 .ruff_cache/
+
+# Python bytecode + compiled extension built into the source tree (maturin develop)
+__pycache__/
+*.py[cod]
+*.so
+*.pyd

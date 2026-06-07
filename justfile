@@ -8,18 +8,21 @@ default:
 # full local gate: build + test + lint + fmt for everything present
 check: check-rust check-python
 
-# Rust workspace (PDP core + later the binding): format check, lint, test
+# Rust workspace (PDP core + binding): format check, lint, test.
+# The binding crate is excluded from `cargo test` (a pyo3 cdylib needs libpython to link
+# a test bin, and it has no Rust tests anyway); it is covered by the Python e2e test.
 check-rust:
     cargo fmt --check
     cargo clippy --workspace --all-targets --all-features -- -D warnings
-    cargo test --workspace
+    cargo test --workspace --exclude policy_decision_py
 
-# Python host: sync deps, format check, lint, type-check (Astral toolchain)
+# Python host: build the extension + sync, format check, lint, type-check, e2e test
 check-python:
     uv sync
     uv run ruff format --check
     uv run ruff check
     uv run ty check
+    uv run python -m unittest discover -s tests -p "test_*.py" -v
 
 # auto-fix formatting across both languages
 fmt:

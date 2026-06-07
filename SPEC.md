@@ -17,7 +17,11 @@ for the decisions this builds on.
   one decision entry point. This is the deep module and the primary test target.
 - **Host:** Python, via a PyO3 binding over the PDP. Holds all impure edges, the
   enforcement adapter (PEP), the context/approval source (PIP), the LLM judge, and the
-  audit sink.
+  audit sink. The binding (`crates/policy_decision_py`, the only crate with FFI) is a
+  thin cdylib exposing `decide` over a **JSON wire** (`decide_json`, the shape ADR-0007
+  describes); the compiled module is the private `agent_action_classifier._core`, wrapped
+  by a Pythonic `decide(dict, dict, dict) -> dict`. Layout in
+  [ADR-0011](docs/adr/0011-workspace-layout-pure-core-and-binding-crate.md).
 - **Build:** `cargo` for the core, `maturin` for the PyO3 wheel, `just` for workflows
   (`just check` = build + test + lint + fmt; `just bench`).
 - **Policy format:** authored data (PAP). Cedar is the *reference model*; v0 uses a
