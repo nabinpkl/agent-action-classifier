@@ -11,9 +11,9 @@ Current iteration task list for `agent-action-classifier`.
 
 ## Next (priority order)
 
-1. [ ] **Externalize the conformance corpus to JSON.** Brings the first fallible
-   boundary (parse/load), so `serde` + `thiserror` get added for real reasons. The
-   corpus becomes the drift-proof spec the bench also replays.
+1. [x] **Externalize the conformance corpus to JSON.** Done: `corpus/asi05/*.json`
+   replayed through `decide`; serde DTOs + anyhow loader at the edge (test-side),
+   core stays serde-free. See ADR-0010. (thiserror deferred to the host PAP boundary.)
 2. [ ] **Add the PyO3 binding crate** (promotes the crate to a workspace; keeps the
    core free of FFI types) so the Python host actually calls `decide`. Measure the
    FFI-crossing overhead success bar (ref: pydantic-core / polars).

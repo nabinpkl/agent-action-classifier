@@ -164,9 +164,15 @@ decision layer (model-independent), which is what makes it audit-defensible.
 
 ## Evaluation approach
 
-- **Conformance corpus = the spec for deterministic lanes.** Hand-authored
-  `CanonicalAction` + `Policy` -> expected `Decision`, asserted at 100% exact-match on
-  `verdict` / `owasp` / `gate_type` / `rule_id`. Same corpus drives the latency bench.
+- **Conformance corpus = the spec for deterministic lanes.** External JSON under
+  `corpus/<clause>/` (`policy.json` + `cases.json`): authored `action` + `policy` ->
+  expected keys, asserted at 100% exact-match on `verdict` / `gate_type` / `owasp` /
+  `rule_id`. The same corpus drives the latency bench. The loader lives at the **edge**
+  (test/bench harness): serde DTOs mirror the JSON and map into the domain types, so the
+  pure core stays serde-free and dependency-free (see
+  [ADR-0010](docs/adr/0010-conformance-corpus-as-external-json.md)). Loader errors use
+  `anyhow` (a harness reports, it does not branch); `thiserror` is reserved for the real
+  typed boundary, the host loading an org policy.
 - **Judge = graded eval**, agreement target 80-90% (ref: ASSERT, human-to-human ~90%),
   never exact-match.
 - **Benchmarks = reference-or-frontier** ([ADR-0006](docs/adr/0006-reference-or-frontier-measurement.md)).
