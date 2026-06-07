@@ -28,3 +28,6 @@ coverage/
 
 # Python virtualenv (uv-managed; uv.lock is committed, the venv is not)
 .venv/
+
+# Tool caches
+.ruff_cache/

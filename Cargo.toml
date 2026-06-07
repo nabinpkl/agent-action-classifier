@@ -1,20 +1,7 @@
-[package]
-name = "policy_decision"
-version = "0.0.0"
-edition = "2024"
-description = "Pure agent-action governance PDP: decide a verdict from a canonical action, org policy, and context (OWASP Agentic, ASI05 v0)."
-publish = false
-
-# No runtime dependencies: the PDP core is std-only, pure, and deterministic by
-# construction (testable with zero infrastructure). thiserror lands later, at the
-# real host PAP policy-loading boundary where callers branch on failure modes.
-[dependencies]
-
-# Dev-only: the conformance-corpus harness (tests/, later benches/) loads the
-# external JSON spec and maps it to the domain types at the edge, so the core stays
-# serde-free. anyhow (not thiserror) because the harness only reports errors, never
-# branches on them. Vetted 2026-06-06 (maintenance + supply chain).
-[dev-dependencies]
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-anyhow = "1"
+# Virtual workspace root. The pure PDP core lives in crates/policy_decision and stays
+# free of any FFI types; the PyO3 binding crate (crates/policy_decision_py) lands in the
+# next slice and is the only place pyo3 appears. Layout follows the tokenizers/polars
+# precedent (pure core crate + thin cdylib binding). See docs/adr/0011.
+[workspace]
+resolver = "3"
+members = ["crates/*"]

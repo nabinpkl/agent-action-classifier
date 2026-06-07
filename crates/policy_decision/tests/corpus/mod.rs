@@ -65,7 +65,9 @@ pub fn load_asi05() -> Result<Asi05Corpus> {
 }
 
 fn corpus_root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("corpus")
+    // The corpus is the shared executable spec at the workspace root, not inside this
+    // crate: walk up from crates/policy_decision/ to the repo root's corpus/.
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus")
 }
 
 fn load_policy(path: &Path) -> Result<Policy> {

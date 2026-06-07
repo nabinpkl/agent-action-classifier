@@ -8,11 +8,11 @@ default:
 # full local gate: build + test + lint + fmt for everything present
 check: check-rust check-python
 
-# Rust PDP core: format check, lint (deny warnings), test (the conformance corpus)
+# Rust workspace (PDP core + later the binding): format check, lint, test
 check-rust:
     cargo fmt --check
-    cargo clippy --all-targets --all-features -- -D warnings
-    cargo test
+    cargo clippy --workspace --all-targets --all-features -- -D warnings
+    cargo test --workspace
 
 # Python host: sync deps, format check, lint, type-check (Astral toolchain)
 check-python:
@@ -29,4 +29,4 @@ fmt:
 
 # stage-1 latency benchmark (reference-or-frontier); lands with benches/
 bench:
-    cargo bench
+    cargo bench --workspace
