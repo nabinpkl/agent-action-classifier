@@ -106,13 +106,17 @@ Approval {
 Decision {
   verdict:    Verdict,        // Allow | Deny | Escalate | Flag
   gate_type:  GateType,       // Hard | Soft   (EU AI Act Art 12 distinction)
-  owasp:      OwaspClause,
-  rule_id:    Option<RuleId>, // the rule that fired, if any
+  owasp:      Option<OwaspClause>, // the clause that fired; None on the engine-default escalate (no clause matched)
+  rule_id:    Option<RuleId>, // the rule that fired, if any (None alongside owasp on the default escalate)
   lane:       Lane,           // which lane resolved it
   rationale:  String,
-  latency_ns: u64,            // measured, for the benchmark / record
 }
 ```
+
+`latency_ns` is **not** on `Decision`: measuring it inside `decide` would inject
+nondeterminism into a value that must exact-match in conformance. Timing is measured by
+the caller (bench/host) and attached at the decision-record layer below, not produced by
+the pure core.
 
 ### The decision interface (the PDP contract)
 

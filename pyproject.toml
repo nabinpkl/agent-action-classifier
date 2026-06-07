@@ -1,0 +1,28 @@
+[project]
+name = "agent-action-classifier"
+version = "0.0.0"
+description = "Python host for the agent-action governance classifier: PEP adapter, judge, audit log, and context over the Rust PDP core."
+requires-python = ">=3.13"
+dependencies = []
+
+# Not built/installed yet: there is no PyO3 binding to bundle. When the binding crate
+# lands, switch this to a maturin build-system and flip `package` to true.
+[tool.uv]
+package = false
+
+[dependency-groups]
+# Dev tooling pinned per the dependency-vetting on 2026-06-06 (maintenance + supply
+# chain). ty is pre-1.0 (0.0.x) with breaking changes between releases, so it is
+# pinned EXACTLY; ruff is API-stable, so a floor is fine. See the commit body.
+dev = [
+    "ruff>=0.15.16",
+    "ty==0.0.44",
+]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.ty]

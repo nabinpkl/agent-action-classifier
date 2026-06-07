@@ -1,0 +1,10 @@
+[package]
+name = "policy_decision"
+version = "0.0.0"
+edition = "2024"
+description = "Pure agent-action governance PDP: decide a verdict from a canonical action, org policy, and context (OWASP Agentic, ASI05 v0)."
+publish = false
+
+# No dependencies: the PDP core is std-only and deterministic by construction.
+# thiserror + serde land with the first fallible boundary (the JSON corpus loader).
+[dependencies]
