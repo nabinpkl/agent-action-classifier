@@ -41,3 +41,11 @@ adherence:
 # bench the repo-alignment hook's bounded transcript tail-scan
 hook-bench:
     repo_alignment/hooks/hook_bench.sh
+
+# repo-alignment eval: paired-delta CI over per-case off/on verdicts (see docs/adr/0014)
+adherence-eval results:
+    python3 repo_alignment/eval/paired_ci.py {{results}}
+
+# self-test the paired-delta CI analyzer (no live runs)
+adherence-eval-selftest:
+    python3 repo_alignment/eval/paired_ci.py --self-test
