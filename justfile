@@ -36,8 +36,8 @@ bench:
 
 # repo-alignment deterministic graders (post-hoc adherence audit; see docs/adr/0013)
 adherence:
-    repo_alignment/adherence_graders.sh
+    repo_alignment/eval/adherence_graders.sh
 
 # bench the repo-alignment hook's bounded transcript tail-scan
 hook-bench:
-    repo_alignment/hook_bench.sh
+    repo_alignment/hooks/hook_bench.sh
