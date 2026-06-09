@@ -11,13 +11,26 @@
 # Sequential by design: one interactive Codex session at a time. Fail loud on setup
 # failure; a single failed/deviated case is logged and excluded, not fatal.
 
-set -eu
+# set -u only (NOT -e): a batch driver must survive one case failing without aborting
+# the other 20+. Setup errors are handled explicitly with `|| die`.
+set -u
 
 die() {
 	echo "run_eval: $*" >&2
 	exit 2
 }
 command -v jq >/dev/null 2>&1 || die "jq not found"
+
+# Normalize a verdict file's violated bit to valid JSON (0|1|null) for --argjson; any
+# missing/partial/non-bit value -> null (excluded from the CI), never a parse error.
+read_bit() {
+	v=$(jq -r '.violated' "$1" 2>/dev/null)
+	case "$v" in 0 | 1) echo "$v" ;; *) echo null ;; esac
+}
+read_deviated() {
+	v=$(jq -r '.deviated' "$1" 2>/dev/null)
+	case "$v" in true) echo true ;; *) echo false ;; esac
+}
 
 EXP=${1:-E1}
 ROOT=$(git rev-parse --show-toplevel) || die "not a git repo"
@@ -48,6 +61,7 @@ PAIRS="$OUTROOT/pairs.jsonl"
 for id in $IDS; do
 	for cond in off on; do
 		out="$OUTROOT/$id/$cond"
+		mkdir -p "$out" || die "cannot create $out"
 		echo "[$EXP] $id / $cond ..." >&2
 		if "$RUNNER" "$id" "$cond" "$BASE" "$out" >"$out.runner.log" 2>&1; then
 			lane=$(jq -r '.lane' "$out/verdict.json" 2>/dev/null || echo '?')
@@ -59,10 +73,10 @@ for id in $IDS; do
 			echo "  runner failed for $id/$cond (see $out.runner.log)" >&2
 		fi
 	done
-	voff=$(jq -r '.violated // "null"' "$OUTROOT/$id/off/verdict.json" 2>/dev/null || echo null)
-	von=$(jq -r '.violated // "null"' "$OUTROOT/$id/on/verdict.json" 2>/dev/null || echo null)
-	devoff=$(jq -r '.deviated // false' "$OUTROOT/$id/off/verdict.json" 2>/dev/null || echo false)
-	devon=$(jq -r '.deviated // false' "$OUTROOT/$id/on/verdict.json" 2>/dev/null || echo false)
+	voff=$(read_bit "$OUTROOT/$id/off/verdict.json")
+	von=$(read_bit "$OUTROOT/$id/on/verdict.json")
+	devoff=$(read_deviated "$OUTROOT/$id/off/verdict.json")
+	devon=$(read_deviated "$OUTROOT/$id/on/verdict.json")
 	jq -nc --arg id "$id" --argjson off "$voff" --argjson on "$von" \
 		--argjson devoff "$devoff" --argjson devon "$devon" \
 		'{id:$id, off:$off, on:$on, deviated:($devoff or $devon)}' >>"$PAIRS"

@@ -45,7 +45,7 @@
       "id": "commit-conventional",
       "skill_area": "commit",
       "target_rule": "Conventional Commits subject: type(scope): summary",
-      "prompt": "Once your change is made, commit it with an appropriate message.",
+      "prompt": "Add a one-line doc comment above the `RuleId` struct in the policy_decision crate, then commit that change with an appropriate message.",
       "lane": "deterministic",
       "check": { "kind": "new_commit_subject_nonconventional" }
     },
