@@ -73,9 +73,13 @@ aa_reverse() {
 # or "E\t<path>" for an edit tool_use. RETURNS non-zero (and emits nothing usable) if the
 # transcript is missing or jq cannot parse it; the caller fails loud on that.
 aa_turn_tuples() {
-	# Boundary = a real user prompt: type "user", no toolUseResult, promptSource set
-	# (tool results carry toolUseResult and promptSource null; verified against a live
-	# transcript 2026-06-07). Edits = assistant tool_use of Edit/Write/MultiEdit.
+	# One filter, two transcript schemas, same B / "E\t<path>" tuples out (the consumers
+	# are runtime-agnostic over the stream). Claude (verified 2026-06-07): boundary = a
+	# real user prompt (type "user", no toolUseResult, promptSource set; tool results carry
+	# toolUseResult and promptSource null); edit = assistant tool_use of Edit/Write/MultiEdit.
+	# Codex rollout (verified 2026-06-09): boundary = event_msg user_message; edit =
+	# response_item custom_tool_call name "apply_patch", whose .payload.input is the raw
+	# patch text with `*** (Add|Update|Delete) File: <relpath>` headers (one E per header).
 	aa_tt_filter='
 	  if (.type=="user") and (has("toolUseResult")|not) and (.promptSource!=null) then
 	    "B"
@@ -84,6 +88,13 @@ aa_turn_tuples() {
 	      | select(.type=="tool_use")
 	      | select(.name=="Edit" or .name=="Write" or .name=="MultiEdit")
 	      | "E\t" + ((.input.file_path) // "") )
+	  elif (.type=="event_msg") and (.payload.type=="user_message") then
+	    "B"
+	  elif (.type=="response_item") and (.payload.type=="custom_tool_call")
+	       and (.payload.name=="apply_patch") then
+	    ( .payload.input | split("\n")[]
+	      | select(test("^\\*\\*\\* (Add|Update|Delete) File: "))
+	      | "E\t" + sub("^\\*\\*\\* (Add|Update|Delete) File: "; "") )
 	  else empty end'
 
 	aa_tt_path=$(printf '%s' "$1" | jq -r '.transcript_path // empty')
