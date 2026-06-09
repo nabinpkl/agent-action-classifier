@@ -33,6 +33,9 @@ SKILLS="$SKILLS /source-code-organization"
 
 REASON="This turn changed: $AREAS. In your FINAL message, give an evidence-backed self-review, not a bare \"done\": (1) which skill nudges fired ($SKILLS) and HOW each concretely shaped the code, citing specific decisions (e.g. thiserror at the lib boundary, exhaustive match, borrowed not cloned); (2) what you CHANGED to comply with AGENTS.md and those skills, and what you deliberately did NOT change and why (justification); (3) if a rule looks stale versus the architecture, surface it to the user."
 
-jq -n --arg r "$REASON" \
-	'{decision: "block", reason: $r, hookSpecificOutput: {hookEventName: "Stop"}}'
-exit 0
+# Block-to-continue via exit 2 + reason on stderr. This is the cross-runtime mechanism:
+# Codex 0.137 rejects the JSON {decision:"block"} shape ("invalid stop hook JSON output",
+# docs-ahead-of-binary), but both Codex and Claude honor exit 2 + stderr as the
+# continuation signal. stop_hook_active (above) still guards exactly one extra pass.
+printf '%s\n' "$REASON" >&2
+exit 2
