@@ -34,8 +34,7 @@ These counter known agent tendencies. Re-read this list when deep in a long task
 - Don't build god files. → one file doing parsing + state + IO gets split by concern, not left to grow into a 1000-line file.
 - Don't hardcode tunable values. → model names, thresholds, paths, and prompts go through config, not literals sprinkled across source. Protocol constants stay inline.
 - Don't add toggle/mode flags that change trust or data semantics. → different behavior comes from a different entry point or type, not a `if v2 { ... }` switch.
-
-
+- Don't bleed context across an isolation boundary. → when the task is self-contained for a *different* context (writing a prompt/brief for another agent, scaffolding or porting into a new repo), don't carry references that only resolve in *this* one. Porting a hook into a fresh repo? Strip the `See docs/adr/0013` comment and the `verified 2026-06-07` dates — the target has no ADR-0013 and never saw that date. Re-resolve or delete every reference against the target, not your current context. Write the brief/file as if the reader has only the target in front of them.
 
 ## Project Docs (read before project work)
 
