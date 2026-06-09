@@ -46,7 +46,13 @@ hook-bench:
 parse-test:
     repo_alignment/hooks/parse_test.sh
 
-# repo-alignment eval: paired-delta CI over per-case off/on verdicts (see docs/adr/0014)
+# repo-alignment eval: run an experiment end-to-end (Codex subject via tmux), grade,
+# and print the paired-delta CI verdict (see docs/adr/0014, 0015). Drives interactive
+# Codex sessions; expect cases x 2 turns, several minutes. ONLY=<id,id> to subset.
+adherence-eval-run experiment="E1":
+    repo_alignment/eval/run_eval.sh {{experiment}}
+
+# repo-alignment eval: paired-delta CI over an existing per-case off/on results file
 adherence-eval results:
     python3 repo_alignment/eval/paired_ci.py {{results}}
 

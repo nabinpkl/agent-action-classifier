@@ -6,8 +6,9 @@ The judge decides only the `lane: "judge"` cases; deterministic cases are scored
 by `case_grader.sh` and are not the judge's to override.
 
 The judge reads the **artifact** (`diff.patch`) and the **trajectory**
-(`transcript.txt`) — judgment-level rules like fail-loud and pushback are
-trajectory properties, not just diff properties (Agent-as-a-Judge, arxiv 2508.02994).
+(`transcript.jsonl`, the Codex session rollout) — judgment-level rules like
+fail-loud and pushback are trajectory properties, not just diff properties
+(Agent-as-a-Judge, arxiv 2508.02994).
 
 ## Task
 
