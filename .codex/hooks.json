@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CODEX_PROJECT_DIR}/repo_alignment/hooks/pre_edit_nudge.sh",
+            "command": "repo_alignment/hooks/pre_edit_nudge.sh",
             "timeout": 5
           }
         ]
@@ -17,7 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CODEX_PROJECT_DIR}/repo_alignment/hooks/end_of_turn_review.sh",
+            "command": "repo_alignment/hooks/end_of_turn_review.sh",
             "timeout": 5
           }
         ]

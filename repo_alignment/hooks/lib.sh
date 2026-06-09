@@ -48,9 +48,15 @@ aa_edited_paths() {
 		printf '%s' "$1" | jq -r '.tool_input.file_path // empty'
 		;;
 	apply_patch)
-		# Robust to the exact field name: scan the whole tool_input for patch headers.
-		printf '%s' "$1" | jq -r '.tool_input' 2>/dev/null |
-			sed -n 's/^\*\*\* \(Add\|Update\|Delete\) File: //p'
+		# Codex 0.137 carries the raw patch body in .tool_input.command; older/other
+		# builds may use a different field. Collect every string value in tool_input and
+		# join with real newlines, so the `*** Update File:` headers land at line starts
+		# regardless of the field name, then read the paths. (jq -r '.tool_input' on the
+		# OBJECT emits escaped \n with the headers mid-line, which never matched.)
+		# sed -E (ERE): BSD/macOS sed has no `\|` BRE alternation (GNU-only), so the old
+		# `\(Add\|Update\|Delete\)` silently matched nothing on macOS.
+		printf '%s' "$1" | jq -r '[.tool_input | .. | strings] | join("\n")' 2>/dev/null |
+			sed -nE 's/^\*\*\* (Add|Update|Delete) File: //p'
 		;;
 	*) : ;;
 	esac

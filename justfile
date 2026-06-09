@@ -42,6 +42,10 @@ adherence:
 hook-bench:
     repo_alignment/hooks/hook_bench.sh
 
+# unit-test the hook's edited-path parser (Codex apply_patch + Claude Edit shapes)
+parse-test:
+    repo_alignment/hooks/parse_test.sh
+
 # repo-alignment eval: paired-delta CI over per-case off/on verdicts (see docs/adr/0014)
 adherence-eval results:
     python3 repo_alignment/eval/paired_ci.py {{results}}
