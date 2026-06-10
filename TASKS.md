@@ -15,9 +15,13 @@ The hand-built engine and the placeholder `Operation` enum are superseded. The c
 externalization (ADR-0010) and the PyO3 host/binding split (ADR-0011) survive as the host
 boundary; the matcher/precedence core is replaced by Cedar. Priority order:
 
-1. [ ] **Cedar speed spike (the gate).** Embed `cedar-policy`; bench one mapped request
-   against the stage-1 budget (p99 < 100µs; ref Microsoft <0.1ms, ADR-0006). Result decides
-   whether the hand-rolled core is removed. *Next up; see the plan.*
+1. [x] **Cedar speed spike (the gate).** Done: `benches/cedar_decide.rs` (cedar-policy
+   4.11, dev-dep). **PASS.** Embedded `is_authorized` over the org-first shape: ~4µs @ 5
+   policies, ~15µs @ 25, ~58µs @ 100; **flat with entity count** (~15.5µs @ 16 vs 150
+   entities, indexed lookup). At a representative ≤25-policy node the eval is ~15µs, ~6.5x
+   under the 100µs budget and in line with Cedar's published single-digit-µs (ref Microsoft
+   <0.1ms, ADR-0006). Policy count is the scaling axis; inheritance + Cedar slicing keep the
+   per-request set small. Gate met -> proceed to the core swap.
 2. [ ] **Swap the core to Cedar.** Replace `policy.rs` (`Matcher`) and `evaluate.rs`
    (precedence) with Cedar; re-point the conformance corpus at the Cedar integration.
 3. [ ] **Org graph + inheritance resolution.** Cedar entities for org/team/role/user/agent;

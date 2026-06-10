@@ -14,7 +14,18 @@ publish = false
 # external JSON spec and maps it to the domain types at the edge, so the core stays
 # serde-free. anyhow (not thiserror) because the harness only reports errors, never
 # branches on them. Vetted 2026-06-06 (maintenance + supply chain).
+#
+# cedar-policy + criterion are the ADR-0017 speed-spike gate ONLY (dev-dep, not a
+# runtime dependency): the bench measures whether embedded Cedar eval meets the
+# stage-1 budget before the core is swapped to it. Promoted to a real dependency in
+# the swap (TASKS #2) iff the gate passes.
 [dev-dependencies]
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 anyhow = "1"
+cedar-policy = "4.11"
+criterion = "0.5"
+
+[[bench]]
+name = "cedar_decide"
+harness = false
