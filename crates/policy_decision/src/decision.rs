@@ -4,7 +4,7 @@
 //! break exact-match conformance, so it is measured by the caller (bench/host) and
 //! attached at the decision-record layer, not produced by `decide`.
 
-use crate::policy::{Lane, OwaspClause, RuleId};
+use crate::policy::{Lane, OwaspClause, PolicyId};
 
 /// The four governance verdicts. `Flag` = observe-and-log (a soft, non-blocking
 /// signal); reserved in v0, produced once the PostToolUse observe lane lands.
@@ -23,14 +23,14 @@ pub enum GateType {
     Soft,
 }
 
-/// The PDP's verdict plus why. `owasp` and `rule_id` are both `None` for the
-/// engine-default escalate, where no clause matched and so none can be cited.
+/// The PDP's verdict plus why. `owasp` and `policy_id` are both `None` for the
+/// engine-default escalate, where no policy matched and so none can be cited.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Decision {
     pub verdict: Verdict,
     pub gate_type: GateType,
     pub owasp: Option<OwaspClause>,
-    pub rule_id: Option<RuleId>,
+    pub policy_id: Option<PolicyId>,
     pub lane: Lane,
     pub rationale: String,
 }

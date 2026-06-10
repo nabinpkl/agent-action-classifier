@@ -1,6 +1,6 @@
-//! ASI05 (Unsafe Code Execution) conformance: replay the external JSON corpus through
+//! ASI05 (Unsafe Code Execution) conformance: replay the external corpus through
 //! `decide` and assert the four conformance keys (`verdict` / `gate_type` / `owasp` /
-//! `rule_id`) at exact-match, per SPEC.md. The corpus under `corpus/asi05/` is the
+//! `policy_id`) at exact-match, per SPEC.md. The corpus under `corpus/asi05/` is the
 //! drift-proof executable spec; this runner is black-box, only ever calling the public
 //! `decide`. It reports every failing case at once (not just the first) and fails loud
 //! if the corpus is empty.
@@ -38,7 +38,7 @@ fn asi05_conformance_corpus() {
 fn mismatch(case: &Case, got: &Decision) -> Option<String> {
     let want = &case.expect;
     let got_owasp = got.owasp.as_ref().map(|clause| clause.0.clone());
-    let got_rule_id = got.rule_id.as_ref().map(|id| id.0.clone());
+    let got_policy_id = got.policy_id.as_ref().map(|id| id.0.clone());
 
     let mut diffs = Vec::new();
     if got.verdict != want.verdict {
@@ -56,10 +56,10 @@ fn mismatch(case: &Case, got: &Decision) -> Option<String> {
     if got_owasp != want.owasp {
         diffs.push(format!("owasp: got {got_owasp:?}, want {:?}", want.owasp));
     }
-    if got_rule_id != want.rule_id {
+    if got_policy_id != want.policy_id {
         diffs.push(format!(
-            "rule_id: got {got_rule_id:?}, want {:?}",
-            want.rule_id
+            "policy_id: got {got_policy_id:?}, want {:?}",
+            want.policy_id
         ));
     }
 

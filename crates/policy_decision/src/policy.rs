@@ -1,80 +1,85 @@
-//! Org policy (PAP): the authored rules the PDP evaluates.
+//! The org policy (PAP): Cedar policies plus the entity store they evaluate against.
 //!
-//! A [`Matcher`] only decides *applicability* (does this rule concern this operation);
-//! the verdict comes from the rule's [`Outcome`] and [`Lane`] under the precedence in
-//! `evaluate`. Keeping applicability separate from outcome is what lets the same
-//! structured predicate route an action to a HardDeny or to the semantic judge.
+//! ADR-0017: the hand-built `Matcher`/`Rule` engine is gone. A rule is now a Cedar
+//! policy carrying annotations the host reads to reconstruct our richer verdict:
+//! `@id(...)`, `@owasp(...)`, and on permits `@outcome(...)` + `@lane(...)`. A Cedar
+//! `forbid` *is* a hard deny. The precedence (deny-overrides, default-deny) is Cedar's;
+//! the cascade interpretation lives in `evaluate`.
 
-use crate::canonical_action::Operation;
+use cedar_policy::{Entities, PolicySet};
 
-/// Stable rule id; appears in the decision record for audit.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct RuleId(pub String);
-
-/// OWASP Agentic clause, e.g. `ASI05`. The organizing/audit layer, not the logic.
+/// OWASP Agentic clause, e.g. `ASI05` (read from a policy's `@owasp` annotation). The
+/// organizing/audit layer, not the decision logic.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct OwaspClause(pub String);
 
-/// Which evaluation lane resolves a rule.
+/// Stable policy id (read from a policy's `@id` annotation); appears in the decision
+/// record for audit. Distinct from Cedar's internal auto-assigned `PolicyId` handle.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct PolicyId(pub String);
+
+/// Which evaluation lane resolves a rule (read from a permit's `@lane` annotation).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Lane {
-    /// Structured predicate, resolved in the pure core.
+    /// Structured predicate, resolved deterministically by Cedar.
     Deterministic,
     /// Routed to the host's LLM judge (the core only returns `Escalate`).
     Semantic,
 }
 
-/// What an applicable rule wants to happen.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Outcome {
-    /// Explicit deny: supreme, unoverridable by any approval.
-    HardDeny,
-    /// Explicit allow.
-    HardAllow,
-    /// An implicit deny the org delegates to scoped user approval.
-    RequiresApproval,
-}
-
-/// Applicability predicate over a single operation. v0 carries only the variants the
-/// ASI05 corpus exercises; matching on `self` first keeps it exhaustive, so a new
-/// variant fails the build instead of silently never matching.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Matcher {
-    /// ShellExec whose command contains any of these substrings.
-    ShellCommandContainsAny(Vec<String>),
-    /// FileWrite whose path starts with this prefix.
-    FileWritePathPrefix(String),
-}
-
-impl Matcher {
-    pub fn applies_to(&self, operation: &Operation) -> bool {
-        match self {
-            Matcher::ShellCommandContainsAny(needles) => matches!(
-                operation,
-                Operation::ShellExec { command, .. }
-                    if needles.iter().any(|n| command.contains(n.as_str()))
-            ),
-            Matcher::FileWritePathPrefix(prefix) => matches!(
-                operation,
-                Operation::FileWrite { path, .. } if path.starts_with(prefix.as_str())
-            ),
+impl Lane {
+    #[must_use]
+    pub fn parse(s: &str) -> Option<Lane> {
+        match s {
+            "deterministic" => Some(Lane::Deterministic),
+            "semantic" => Some(Lane::Semantic),
+            _ => None,
         }
     }
 }
 
-/// One authored rule.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Rule {
-    pub id: RuleId,
-    pub owasp_tag: OwaspClause,
-    pub lane: Lane,
-    pub matcher: Matcher,
-    pub outcome: Outcome,
+/// What an applicable permit wants (read from its `@outcome` annotation). A Cedar
+/// `forbid` needs no annotation: it is always a hard deny.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Outcome {
+    /// Explicit allow.
+    HardAllow,
+    /// An implicit deny the org delegates to scoped user approval (checked host-side).
+    RequiresApproval,
 }
 
-/// The org policy: an ordered set of rules. Precedence is by authority (see
-/// `evaluate`), not by list position.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+impl Outcome {
+    #[must_use]
+    pub fn parse(s: &str) -> Option<Outcome> {
+        match s {
+            "hard_allow" => Some(Outcome::HardAllow),
+            "requires_approval" => Some(Outcome::RequiresApproval),
+            _ => None,
+        }
+    }
+}
+
+/// The authored org policy: the Cedar policy set plus the entity store (data-scope
+/// attributes now; the org graph with inheritance lands in the next slice). Both are
+/// supplied by the central plane (PAP); the loader/binding parses them at the edge.
 pub struct Policy {
-    pub rules: Vec<Rule>,
+    policies: PolicySet,
+    entities: Entities,
+}
+
+impl Policy {
+    #[must_use]
+    pub fn new(policies: PolicySet, entities: Entities) -> Self {
+        Self { policies, entities }
+    }
+
+    #[must_use]
+    pub fn policies(&self) -> &PolicySet {
+        &self.policies
+    }
+
+    #[must_use]
+    pub fn entities(&self) -> &Entities {
+        &self.entities
+    }
 }

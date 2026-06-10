@@ -22,8 +22,14 @@ boundary; the matcher/precedence core is replaced by Cedar. Priority order:
    under the 100µs budget and in line with Cedar's published single-digit-µs (ref Microsoft
    <0.1ms, ADR-0006). Policy count is the scaling axis; inheritance + Cedar slicing keep the
    per-request set small. Gate met -> proceed to the core swap.
-2. [ ] **Swap the core to Cedar.** Replace `policy.rs` (`Matcher`) and `evaluate.rs`
-   (precedence) with Cedar; re-point the conformance corpus at the Cedar integration.
+2. [x] **Swap the core to Cedar.** Done: `Matcher`/precedence and the placeholder
+   `Operation` enum are gone. `decide` builds a Cedar request, runs `is_authorized`, and
+   reconstructs the four-verdict cascade host-side from the determining policies'
+   annotations (`@id`/`@owasp`/`@outcome`/`@lane`); a `forbid` is the supreme hard deny.
+   Corpus pivoted to the data-scope model (`policy.cedar` + `entities.json` + `cases.json`),
+   all 9 cases pass at 100% exact-match through Cedar. Wire + Python carry Cedar source +
+   entity JSON. `cedar-policy` is now a real dep. FFI round-trip ~64µs/call incl. per-call
+   Cedar parse (host caching is the optimization).
 3. [ ] **Org graph + inheritance resolution.** Cedar entities for org/team/role/user/agent;
    resolve an agent's effective policy by its position in the graph; policy-on-node cascade.
 4. [ ] **Live per-agent hook PEP.** Wire each agent's PreToolUse hook to the plane (the

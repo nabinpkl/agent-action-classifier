@@ -2,28 +2,24 @@
 name = "policy_decision"
 version = "0.0.0"
 edition = "2024"
-description = "Pure agent-action governance PDP: decide a verdict from a canonical action, org policy, and context (OWASP Agentic, ASI05 v0)."
+description = "Agent-action governance PDP over Cedar: decide a verdict from a canonical action, org policy, and context (OWASP Agentic, ASI05 v0)."
 publish = false
 
-# No runtime dependencies: the PDP core is std-only, pure, and deterministic by
-# construction (testable with zero infrastructure). thiserror lands later, at the
-# real host PAP policy-loading boundary where callers branch on failure modes.
+# Cedar is the PDP engine (ADR-0017): the speed-spike gate passed, so cedar-policy is
+# now a real dependency. The core is no longer zero-dep or pure-std; it is a thin
+# orchestrator around Cedar's formally-verified evaluator. `decide` stays deterministic
+# (Cedar is) and the escalate lane is still returned, not run.
 [dependencies]
+cedar-policy = "4.11"
 
-# Dev-only: the conformance-corpus harness (tests/, later benches/) loads the
-# external JSON spec and maps it to the domain types at the edge, so the core stays
-# serde-free. anyhow (not thiserror) because the harness only reports errors, never
-# branches on them. Vetted 2026-06-06 (maintenance + supply chain).
-#
-# cedar-policy + criterion are the ADR-0017 speed-spike gate ONLY (dev-dep, not a
-# runtime dependency): the bench measures whether embedded Cedar eval meets the
-# stage-1 budget before the core is swapped to it. Promoted to a real dependency in
-# the swap (TASKS #2) iff the gate passes.
+# Dev-only: the conformance-corpus harness (tests/, benches/) loads the external JSON
+# spec and maps it to the domain types at the edge. anyhow (not thiserror) because the
+# harness only reports errors, never branches on them. Vetted 2026-06-06. criterion
+# drives the stage-1 latency bench (benches/cedar_decide.rs).
 [dev-dependencies]
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 anyhow = "1"
-cedar-policy = "4.11"
 criterion = "0.5"
 
 [[bench]]

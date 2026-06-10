@@ -1,0 +1,9 @@
+[
+  { "uid": { "type": "Agent", "id": "agent-1" }, "attrs": {}, "parents": [] },
+  { "uid": { "type": "DataScope", "id": "public-docs" }, "attrs": { "sensitivity": "public", "pii": false }, "parents": [] },
+  { "uid": { "type": "DataScope", "id": "public-pii-export" }, "attrs": { "sensitivity": "public", "pii": true }, "parents": [] },
+  { "uid": { "type": "DataScope", "id": "customer-records" }, "attrs": { "sensitivity": "confidential", "pii": true }, "parents": [] },
+  { "uid": { "type": "DataScope", "id": "app-config" }, "attrs": { "sensitivity": "restricted", "pii": false }, "parents": [] },
+  { "uid": { "type": "DataScope", "id": "secrets" }, "attrs": { "sensitivity": "secret", "pii": false }, "parents": [] },
+  { "uid": { "type": "DataScope", "id": "telemetry" }, "attrs": { "sensitivity": "internal", "pii": false }, "parents": [] }
+]

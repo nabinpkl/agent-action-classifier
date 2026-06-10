@@ -1,15 +1,16 @@
-//! The fixed canonical action schema.
+//! The canonical action: one normalized agent tool call, the unit the PDP decides on.
 //!
-//! The single most load-bearing decision in the design: a **closed set of operation
-//! variants**, not dynamic JSON. The fixed shape buys zero-allocation matching, a cheap
-//! FFI boundary, and stable bindings at once. Adding a new action kind is a deliberate
-//! code change, by design (the compiler then forces every match to handle it).
+//! Modeled org-first (ADR-0017): a tool call is `principal × action × resource`, the
+//! three axes Cedar evaluates. The principal is the agent; the action is a small closed
+//! kind; the resource is a data scope (its attributes live in the entity store, the PAP,
+//! not here). This is plain data with no Cedar types: the mapping to a Cedar request
+//! lives at the engine edge (`evaluate`), so this stays a pure schema.
 
-/// Which agent took the action.
+/// Which agent took the action (the Cedar principal: `Agent::"<id>"`).
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct AgentId(pub String);
 
-/// Trajectory id. Carried in v0 for the future stateful lane; not yet matched on.
+/// Trajectory id. Carried for the future stateful lane; not yet matched on.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SessionId(pub String);
 
@@ -26,22 +27,59 @@ pub struct Provenance {
     pub raw_payload_id: String,
 }
 
-/// The closed variant set. v0 covers the ASI05 (unsafe code execution) surface.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Operation {
-    ShellExec { command: String, cwd: String },
-    FileWrite { path: String, byte_len: u64 },
-    NetworkFetch { url: String },
+/// The closed set of action kinds (the Cedar action: `Action::"<id>"`). Small and
+/// closed by design; the resource/scope space is open. A new kind is a code change.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ActionKind {
+    Read,
+    Write,
+    Share,
+    Delete,
+    Execute,
 }
+
+impl ActionKind {
+    /// The Cedar action entity id this kind maps to.
+    #[must_use]
+    pub fn as_cedar_id(self) -> &'static str {
+        match self {
+            ActionKind::Read => "read",
+            ActionKind::Write => "write",
+            ActionKind::Share => "share",
+            ActionKind::Delete => "delete",
+            ActionKind::Execute => "execute",
+        }
+    }
+
+    /// Parse a wire/corpus action string. `None` on an unknown kind (the caller fails
+    /// loud rather than guessing a default).
+    #[must_use]
+    pub fn parse(s: &str) -> Option<ActionKind> {
+        match s {
+            "read" => Some(ActionKind::Read),
+            "write" => Some(ActionKind::Write),
+            "share" => Some(ActionKind::Share),
+            "delete" => Some(ActionKind::Delete),
+            "execute" => Some(ActionKind::Execute),
+            _ => None,
+        }
+    }
+}
+
+/// The data scope a tool call touches (the Cedar resource: `DataScope::"<id>"`). Its
+/// attributes (sensitivity, pii, later org-graph parents) live in the entity store.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ResourceId(pub String);
 
 /// One normalized agent action: the unit the PDP decides on.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CanonicalAction {
-    pub agent_id: AgentId,
+    pub principal: AgentId,
+    pub action: ActionKind,
+    pub resource: ResourceId,
     pub session_id: SessionId,
     /// Monotonic index within the session.
     pub seq: u64,
     pub at: Timestamp,
     pub source: Provenance,
-    pub operation: Operation,
 }
