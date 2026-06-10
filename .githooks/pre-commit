@@ -20,10 +20,25 @@ is_binary() {
 	return 1
 }
 
+# Generated dependency lockfiles are machine-authored manifests, not concept files:
+# the "grown past one concept" reasoning does not apply, and they legitimately run
+# thousands of lines (a single transitive-dep addition can blow past the limit). Same
+# rationale as the binary exemption: a source-readability rule should not gate a
+# generated artifact. Matched by basename so it holds in any directory.
+is_generated() {
+	case "${1##*/}" in
+	Cargo.lock | uv.lock | poetry.lock | package-lock.json | pnpm-lock.yaml | yarn.lock | Gemfile.lock | go.sum)
+		return 0
+		;;
+	esac
+	return 1
+}
+
 echo "── pre-commit: file-size check (max ${MAX_LINES} lines) ──"
 
 for file in $staged; do
 	is_binary "$file" && continue
+	is_generated "$file" && continue
 	# Count lines of the staged blob, not the working-tree copy.
 	lines=$(git show ":$file" 2>/dev/null | wc -l | tr -d ' ')
 	[ -z "$lines" ] && continue
