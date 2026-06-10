@@ -2,202 +2,206 @@
 
 Technical shape for `agent-action-classifier`. Scope: the **how**, at
 contract-altitude. This file states contracts (data shapes, the decision interface,
-budgets, invariants), not mechanism (no module layout, no function bodies, no
-"X calls Y"). Mechanism lives in the code; the executable conformance corpus is the
-real, drift-proof spec. See [PRD.md](PRD.md) for the what/why and [docs/adr/](docs/adr/)
-for the decisions this builds on.
+budgets, invariants), not mechanism (no module layout, no function bodies). Mechanism
+lives in the code; the executable conformance corpus is the real, drift-proof spec. See
+[PRD.md](PRD.md) for the what/why and [docs/adr/](docs/adr/) for the decisions this builds
+on, especially [ADR-0017](docs/adr/0017-adopt-cedar-engine-org-modeled-central-plane.md)
+(Cedar engine + org-first model), which supersedes the earlier hand-rolled-engine and
+`Operation`-enum shape.
 
 > Type sketches below are illustrative **contracts**, not final source. They pin field
-> names and shapes precisely where prose is ambiguous; they will be refined as the
-> conformance corpus forces precision.
+> names and shapes where prose is ambiguous; they are refined as the conformance corpus
+> forces precision.
 
 ## Stack
 
-- **Policy Decision Point (PDP):** Rust library crate. Pure, no I/O, no async. Exposes
-  one decision entry point. This is the deep module and the primary test target.
-- **Host:** Python, via a PyO3 binding over the PDP. Holds all impure edges, the
-  enforcement adapter (PEP), the context/approval source (PIP), the LLM judge, and the
-  audit sink. The binding (`crates/policy_decision_py`, the only crate with FFI) is a
-  thin cdylib exposing `decide` over a **JSON wire** (`decide_json`, the shape ADR-0007
-  describes); the compiled module is the private `agent_action_classifier._core`, wrapped
-  by a Pythonic `decide(dict, dict, dict) -> dict`. Layout in
-  [ADR-0011](docs/adr/0011-workspace-layout-pure-core-and-binding-crate.md).
-- **Build:** `cargo` for the core, `maturin` for the PyO3 wheel, `just` for workflows
-  (`just check` = build + test + lint + fmt; `just bench`).
-- **Policy format:** authored data (PAP). Cedar is the *reference model*; v0 uses a
-  minimal declarative format and our own evaluator (adopting Cedar's engine would skip
-  the systems lesson, [ADR-0001](docs/adr/0001-build-as-a-learning-project.md)). The
-  in-memory `Policy` contract below is what is load-bearing; the on-disk syntax is
-  free to change.
+- **Policy Decision Point (PDP):** the embedded **Cedar** engine (`cedar-policy` Rust
+  crate, [ADR-0017](docs/adr/0017-adopt-cedar-engine-org-modeled-central-plane.md)).
+  Cedar evaluates an authorization request (principal, action, resource, context) against
+  the org's policies and entity hierarchy and returns allow/deny. It is the deterministic
+  decision and the primary latency target. **Gate:** a latency spike must confirm embedded
+  eval meets the budget below before the legacy hand-rolled core is removed.
+- **Host:** Python, wrapping the PDP and holding the impure edges — the **central plane**
+  (PAP: org graph + Cedar policy store), the **per-agent hook** (PEP), the
+  context/approval source (PIP), the LLM **judge**, and the audit sink.
+- **Build:** `cargo` for the core + Cedar, `maturin` for the PyO3 wheel if the PDP is
+  embedded in-process, `just` for workflows (`just check`, `just bench`).
+- **Policy language:** **Cedar** (adopted, not a reference model;
+  [ADR-0017](docs/adr/0017-adopt-cedar-engine-org-modeled-central-plane.md)). Policies and
+  the entity hierarchy are authored on the central plane.
 
 ## Module boundaries (XACML P*Ps, [ADR-0005](docs/adr/0005-organization-policy-supremacy-and-authz-architecture.md))
 
-| Role | Responsibility | Purity | Side |
-|---|---|---|---|
-| **PDP** | decide a verdict from action + policy + context | pure | Rust |
-| **PEP** | intercept the action, map to canonical, enforce/observe the verdict | impure | Python |
-| **PAP** | author and load the org policy | impure (load) | Python loads, Rust holds |
-| **PIP** | supply context (scoped approvals; later, trajectory) | impure | Python |
-| **Audit sink** | persist the decision record | impure | Python |
-| **Judge** | semantic verdict for the escalate lane | impure (LLM) | Python |
+| Role | Responsibility | Side |
+|---|---|---|
+| **PDP** | decide allow/deny from request + policies + entities (Cedar) | Cedar engine |
+| **PEP** | each agent's PreToolUse hook: intercept the tool call, resolve effective policy, enforce | host |
+| **PAP** | the central plane: author + hold the org graph and Cedar policies; cascade by node | host |
+| **PIP** | supply context (scoped approvals; later, trajectory) | host |
+| **Audit sink** | persist the decision record | host |
+| **Judge** | semantic verdict for the escalate lane | host (LLM) |
 
-Source-code dependencies point inward: the PDP defines the contracts it needs; the
-impure edges implement them. The PDP is environment-independent by construction, which
-is also what makes it polyglot-embeddable later.
+Source-code dependencies point inward: the decision uses Cedar; the impure edges
+(hooks, plane, context, audit) implement what the decision needs.
 
 ## Data contracts
 
-### Canonical action (the fixed schema)
+### Authorization request (the canonical action)
 
-The single most load-bearing decision: a **closed set of action variants**, not dynamic
-JSON. Fixed shape buys zero-allocation matching, a cheap FFI boundary, and stable
-bindings at once. Adding a new action kind is a deliberate code change, by design.
-
-```
-CanonicalAction {
-  agent_id:   AgentId,        // which agent took the action
-  session_id: SessionId,      // trajectory id (carried in v0 for the future stateful lane)
-  seq:        u64,            // monotonic index within the session
-  at:         Timestamp,
-  source:     Provenance,     // provider name + opaque raw-payload id, for audit
-  operation:  Operation,      // the closed variant set below
-}
-
-Operation =                   // closed enum; v0 covers the ASI05 surface
-  | ShellExec    { command: String, cwd: String }
-  | FileWrite    { path: String, byte_len: u64 }
-  | NetworkFetch { url: String }
-```
-
-The v0 corpus shape is modeled on a real LangGraph tool-call payload, then normalized
-into this struct (the PEP's job).
-
-### Policy and rules (PAP)
+The tool call, normalized into the four axes Cedar evaluates. Replaces the placeholder
+`Operation` enum.
 
 ```
-Policy { rules: [Rule] }
-
-Rule {
-  id:        RuleId,          // stable, appears in the decision record for audit
-  owasp_tag: OwaspClause,     // e.g. "ASI05"; the organizing/audit layer, not the logic
-  lane:      Lane,            // Deterministic | Semantic
-  match:     Matcher,         // structured predicate (deterministic) or judge-prompt (semantic)
-  outcome:   Outcome,         // HardDeny | HardAllow | RequiresApproval
+Request {
+  principal: Agent,         // the agent, with its inheritance chain to user/team/org
+  action:    Action,        // the tool-call kind (e.g. read, write, share, invoke)
+  resource:  DataScope,     // what data/scope the call touches, with attributes
+  context:   Context,       // scoped approvals; later, trajectory
+  at:        Timestamp,
+  source:    Provenance,    // provider/runtime + opaque raw-payload id, for audit
 }
 ```
 
-`HardDeny` = explicit deny (supreme, unoverridable). `HardAllow` = explicit allow.
-`RequiresApproval` = an implicit deny the org delegates to scoped user approval.
+The principal carries the **inheritance chain** (agent ∈ user ∈ team ∈ org); the resource
+is a **data scope** with attributes (tenant, sensitivity, region, etc.). MCP tool
+descriptions are an input that helps populate `action`/`resource`, not a replacement for
+this schema. The action set is small and closed; the resource/scope space is open and
+attributed (ABAC), which is why Cedar (entity hierarchy + ABAC) is the fit.
+
+### Org model and policies (PAP)
+
+The central plane holds two things Cedar consumes:
+
+```
+Entities {                  // the org graph
+  org, team, role, user, agent nodes;
+  parent edges (agent in user in team in org) = inheritance;
+  attributes per entity (data-scope membership, tenant, ...).
+}
+
+Policies [                  // Cedar policies, each annotated
+  permit/forbid (principal, action, resource) when { ... };
+  @owasp("ASI05") @id("...") @lane("deterministic"|"semantic") ...
+]
+```
+
+A policy attached at a node applies to everything beneath it (propagation = inheritance).
+`forbid` overrides `permit`; an unmatched request is denied (Cedar-native default-deny),
+which *is* the org-supremacy authority model
+([ADR-0005](docs/adr/0005-organization-policy-supremacy-and-authz-architecture.md)).
+"Requires approval" is an *implicit* deny the org delegates to scoped approval.
 
 ### Context (PIP)
 
 ```
 Context {
-  approvals: [Approval],      // scoped; only resolve RequiresApproval, never HardDeny
+  approvals: [Approval],    // scoped; only resolve requires-approval, never an explicit forbid
   // trajectory window: reserved for the stateful lane, absent in v0
 }
 
 Approval {
-  scope:      ApprovalScope,  // ThisAction | CommandClass(pattern) | SessionWindow(window)
+  scope:      ApprovalScope, // ThisCall | Class(pattern) | SessionWindow(window)
   granted_by: UserId,
   expires:    Timestamp,
 }
 ```
 
-### Decision (PDP output)
+### Decision (PDP output, host-shaped)
+
+Cedar returns allow/deny; the host wraps that into the audit-bearing decision the cascade
+and log need:
 
 ```
 Decision {
   verdict:    Verdict,        // Allow | Deny | Escalate | Flag
   gate_type:  GateType,       // Hard | Soft   (EU AI Act Art 12 distinction)
-  owasp:      Option<OwaspClause>, // the clause that fired; None on the engine-default escalate (no clause matched)
-  rule_id:    Option<RuleId>, // the rule that fired, if any (None alongside owasp on the default escalate)
-  lane:       Lane,           // which lane resolved it
+  owasp:      Option<Clause>, // from the deciding policy's annotation; None on default-deny
+  policy_id:  Option<Id>,     // the deciding policy, if any
+  lane:       Lane,           // Deterministic (Cedar) | Semantic (judge)
   rationale:  String,
 }
 ```
 
-`latency_ns` is **not** on `Decision`: measuring it inside `decide` would inject
-nondeterminism into a value that must exact-match in conformance. Timing is measured by
-the caller (bench/host) and attached at the decision-record layer below, not produced by
-the pure core.
+`latency_ns` is **not** on `Decision`: it is nondeterministic and would break exact-match
+conformance. Timing is measured by the caller and attached at the decision-record layer.
 
 ### The decision interface (the PDP contract)
 
 ```
-decide(action: &CanonicalAction, policy: &Policy, context: &Context) -> Decision
+decide(request, policies, entities, context) -> Decision
 ```
 
-Pure. Deterministic. No I/O. The escalate lane is **not** executed here, `decide`
-returns `verdict = Escalate` and the host runs the judge. This keeps the core
-deterministic and conformance-testable.
+Deterministic for the Cedar lane. The escalate lane is **not** executed here — `decide`
+returns `verdict = Escalate` and the host runs the judge — which keeps the deterministic
+core conformance-testable.
 
 ### Evaluation contract (precedence, [ADR-0005](docs/adr/0005-organization-policy-supremacy-and-authz-architecture.md))
 
-For the clauses **applicable** to the action, in this order of authority:
+Cedar-native, with the cascade layered on:
 
-1. Any applicable `HardDeny` matches -> `Deny`, `Hard`. (deny-overrides; supreme)
-2. An applicable `RequiresApproval` with a valid in-scope `Approval` in context -> `Allow`, `Soft`; without one -> `Escalate`, `Soft`.
-3. An applicable `HardAllow`, **and no higher-lane (semantic/stateful) clause applies** -> `Allow`, `Hard`.
-4. An applicable semantic clause, or any remaining ambiguity -> `Escalate` (to the judge).
-5. Nothing applicable / unresolved -> default `Escalate`, then **fail closed to `Deny`** if escalation does not resolve.
+1. An applicable `forbid` -> `Deny`, `Hard` (deny-overrides; supreme).
+2. A requires-approval policy with a valid in-scope `Approval` -> `Allow`, `Soft`; without one -> `Escalate`, `Soft`.
+3. An applicable `permit`, **and no higher-lane (semantic/stateful) clause applies** -> `Allow`, `Hard`.
+4. A semantic clause, or remaining ambiguity -> `Escalate` (to the judge).
+5. No applicable policy -> Cedar default-deny; the host treats it as `Escalate`, then **fails closed to `Deny`** if escalation does not resolve.
 
 ### Judge (host, impure)
 
 ```
-judge(action, context, clause, policy_excerpt) -> JudgeVerdict { verdict, rationale, confidence }
+judge(request, context, clause, policy_excerpt) -> JudgeVerdict { verdict, rationale, confidence }
 ```
 
-Receives action + context (trajectory, intent, scoped approval). Reasons **under org
-supremacy**: it decides whether the action violates org policy, with approval as a
-mitigating-not-overriding factor. Nondeterministic by nature, kept out of the
-exact-match conformance suite.
+Reasons **under org supremacy**: decides whether the tool call violates org policy, with
+approval as a mitigating-not-overriding factor. Nondeterministic; excluded from exact-match
+conformance.
 
 ### Decision-log record (audit sink, OPA/AAT-shaped, chain-ready)
 
 ```
 DecisionRecord {
-  at, action, verdict, gate_type, owasp, rule_id, lane, rationale, latency_ns,
+  at, request, verdict, gate_type, owasp, policy_id, lane, rationale, latency_ns,
   prev_hash: Option<Hash>,    // chain-ready; null in v0, SHA-256 chain is roadmap
 }
 ```
 
-JSON. Decision-type mapping to OPA's vocabulary: `Allow->Allowed`, `Deny->Denied`,
-`Escalate->Advice`, evaluation failure -> `Error`. The record is produced at the
-decision layer (model-independent), which is what makes it audit-defensible.
+JSON. OPA mapping: `Allow->Allowed`, `Deny->Denied`, `Escalate->Advice`, evaluation failure
+-> `Error`. Produced at the decision layer (model-independent), which makes it
+audit-defensible.
 
 ## Evaluation approach
 
-- **Conformance corpus = the spec for deterministic lanes.** External JSON under
-  `corpus/<clause>/` (`policy.json` + `cases.json`): authored `action` + `policy` ->
-  expected keys, asserted at 100% exact-match on `verdict` / `gate_type` / `owasp` /
-  `rule_id`. The same corpus drives the latency bench. The loader lives at the **edge**
-  (test/bench harness): serde DTOs mirror the JSON and map into the domain types, so the
-  pure core stays serde-free and dependency-free (see
-  [ADR-0010](docs/adr/0010-conformance-corpus-as-external-json.md)). Loader errors use
-  `anyhow` (a harness reports, it does not branch); `thiserror` is reserved for the real
-  typed boundary, the host loading an org policy.
-- **Judge = graded eval**, agreement target 80-90% (ref: ASSERT, human-to-human ~90%),
-  never exact-match.
+- **Conformance corpus = the spec for the deterministic lane.** External JSON: an org model
+  (entities) + Cedar policies + authored requests -> expected keys, asserted at 100%
+  exact-match on `verdict` / `gate_type` / `owasp` / `policy_id`. The same corpus drives the
+  latency bench. It now tests the Cedar integration (mapping + policy + inheritance
+  resolution), not a bespoke engine.
+- **Judge = graded eval**, agreement target 80-90% (ref ASSERT, human-to-human ~90%), never
+  exact-match.
 - **Benchmarks = reference-or-frontier** ([ADR-0006](docs/adr/0006-reference-or-frontier-measurement.md)).
 
 ## Budgets
 
-- **Stage-1 `decide` (deterministic):** target p99 `< 100µs`; ref Microsoft `<0.1ms`
-  inline. The real goal is *provably negligible* against a 500ms-2s LLM call, measured
-  not assumed.
-- **PyO3 FFI crossing:** measured, target negligible; ref pydantic-core / polars.
-- **Judge:** bounded by LLM latency, paid only on escalation. **Escalation rate**
-  (fraction reaching the judge) is a `frontier` metric.
+- **Deterministic decide (Cedar):** target p99 `< 100µs`; ref Microsoft `<0.1ms` inline,
+  and Cedar's own ~single-digit-µs embedded eval. The real goal is *provably negligible*
+  against a 500ms-2s LLM call, measured not assumed. Cedar eval scales with policy/entity
+  count; the spike measures the actual policy shape.
+- **Host/FFI crossing:** measured, target negligible; ref pydantic-core / polars.
+- **Judge:** bounded by LLM latency, paid only on escalation. **Escalation rate** is a
+  `frontier` metric.
 
 ## Known constraints
 
-- **Closed action set:** no dynamic/arbitrary actions; a new kind is a code change.
-  Deliberate, for matching speed and FFI cheapness.
-- **Stateless v0:** `session_id` / `seq` / `Context` carry the seams for the stateful
-  lane, but trajectory clauses (ASI03/06/08) are not implemented.
-- **Framework-layer is advisory and bypassable** ([ADR-0003](docs/adr/0003-govern-at-framework-layer-defer-kernel.md)); not a hardened enforcement boundary.
-- **Judge nondeterminism** is contained to the semantic lane and excluded from the
-  hard spec.
-- **No live enforcement in v0:** verdicts are produced and logged; acting on them
-  against a live agent needs a live PEP (roadmap).
+- **Single org in v0:** the entity model is shaped for multi-tenant but does not implement
+  tenant isolation. Trigger to revisit: the plane hosts more than one org.
+- **Cedar's entity hierarchy bounds relationship expressiveness.** Rich ReBAC beyond it is
+  deferred (trigger: relationships outgrow the entity model -> OpenFGA/Zanzibar or a
+  relationship store).
+- **One central plane:** no multi-machine distribution (OPAL-style) in v0. Trigger: agents
+  span machines or must run while the plane is down.
+- **Closed action set, open resource space:** a new action kind is a code change; data scopes
+  are open and attributed.
+- **Stateless v0:** the request carries seams for the stateful lane, but trajectory clauses
+  (ASI03/06/08) are not implemented.
+- **Framework-layer enforcement is advisory and bypassable**
+  ([ADR-0003](docs/adr/0003-govern-at-framework-layer-defer-kernel.md)).
+- **Judge nondeterminism** is contained to the semantic lane and excluded from the hard spec.
