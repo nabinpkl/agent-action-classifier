@@ -61,7 +61,13 @@ boundary; the matcher/precedence core is replaced by Cedar. Priority order:
    asi05 plane via a new `resource_map.json` (glob->scope), so the demo needs zero new policy. v0
    governs mutation tools only. Probe-verified groundwork: a nested git repo (`experiments/`)
    isolates hooks for both providers, and `codex exec` fires no hooks (interactive only).
-5. [ ] **Decision-log record** (OPA/AAT-shaped JSON) at the host audit sink.
+5. [x] **Decision-log record (ADR-0022).** Done in the `enforce` binary: given `--audit-log
+   <path>` it appends one OPA/AAT-shaped JSON record per *governed* decision (request + verdict +
+   gate_type + owasp + policy_id + lane + rationale + measured `latency_ns` + null `prev_hash`).
+   The sink follows the PEP into Rust (ADR-0021) — `enforce` already holds the `Decision`, no host
+   round-trip. **Fails closed** on a write failure (unrecordable decision is denied); out-of-scope
+   calls leave no record. Deferred-with-triggers: the SHA-256 `prev_hash` chain + tamper-evident
+   store, a central (vs per-agent) sink, per-call provenance id, rotation/retention.
 6. [ ] **Semantic judge lane:** host LLM judge for `Escalate`, graded eval (80-90%, never
    exact-match).
 

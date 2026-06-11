@@ -176,7 +176,10 @@ DecisionRecord {
 
 JSON. OPA mapping: `Allow->Allowed`, `Deny->Denied`, `Escalate->Advice`, evaluation failure
 -> `Error`. Produced at the decision layer (model-independent), which makes it
-audit-defensible.
+audit-defensible. Realized in the `enforce` binary
+([ADR-0022](docs/adr/0022-decision-log-audit-sink-in-enforce.md)): given `--audit-log <path>`
+it appends one record per *governed* decision (JSON lines), with `latency_ns` measured around
+`decide`. The write **fails closed** — an unrecordable decision is denied, not silently allowed.
 
 ## Evaluation approach
 
