@@ -1,7 +1,9 @@
-//! Conformance-corpus loader: parse the external spec under `corpus/asi05/` into the
-//! domain types, mapping at this edge. The org policy is a Cedar schema + policy source +
-//! entity store, validated as a unit by `Policy::from_sources` (ADR-0017, ADR-0018); only
-//! the cases (actions + context + expectations) need bespoke DTOs.
+//! Conformance-corpus loader: parse an external spec under `corpus/<name>/` into the domain
+//! types, mapping at this edge. The org policy is a Cedar schema + policy source + entity
+//! store, validated as a unit by `Policy::from_sources` (ADR-0017, ADR-0018); only the cases
+//! (actions + context + expectations) need bespoke DTOs. Each corpus is one named directory
+//! (e.g. `asi05`, `org_graph`); `load_corpus` is generic over the name, and `check` replays a
+//! loaded corpus through `decide` and returns the exact-match failures.
 //!
 //! This is test/bench harness, not library API: nobody branches on its failure modes,
 //! so it uses `anyhow` (per the rust-coding skill, anyhow for glue). The DTOs mirror the
@@ -16,7 +18,8 @@ use policy_decision::canonical_action::{
     ActionKind, AgentId, CanonicalAction, Provenance, ResourceId, SessionId, Timestamp,
 };
 use policy_decision::context::{Approval, ApprovalScope, Context as DecisionContext, UserId};
-use policy_decision::decision::{GateType, Verdict};
+use policy_decision::decide;
+use policy_decision::decision::{Decision, GateType, Verdict};
 use policy_decision::policy::Policy;
 
 // Audit-only fields that do not affect a verdict get fixed synthetic values, so the
@@ -43,15 +46,16 @@ pub struct Expectation {
 }
 
 /// A loaded corpus: the one authored policy plus its cases.
-pub struct Asi05Corpus {
+pub struct Corpus {
     pub policy: Policy,
     pub cases: Vec<Case>,
 }
 
-/// Load `corpus/asi05/{policy.cedar,entities.json,cases.json}` from the workspace root.
-/// Fails loud: a missing file, malformed Cedar/JSON, or an empty case set all error.
-pub fn load_asi05() -> Result<Asi05Corpus> {
-    let dir = corpus_root().join("asi05");
+/// Load `corpus/<name>/{policy.cedarschema,policy.cedar,entities.json,cases.json}` from the
+/// workspace root. Fails loud: a missing file, malformed Cedar/JSON, or an empty case set
+/// all error.
+pub fn load_corpus(name: &str) -> Result<Corpus> {
+    let dir = corpus_root().join(name);
     let policy = load_policy(
         &dir.join("policy.cedarschema"),
         &dir.join("policy.cedar"),
@@ -64,7 +68,58 @@ pub fn load_asi05() -> Result<Asi05Corpus> {
             dir.display()
         );
     }
-    Ok(Asi05Corpus { policy, cases })
+    Ok(Corpus { policy, cases })
+}
+
+/// Replay every case through `decide` and return one `[name] diffs` line per case whose
+/// decision does not exactly match its expectation. Empty result = full conformance. The
+/// black-box runner shared by every corpus's conformance test (only ever calls `decide`).
+#[must_use]
+pub fn check(corpus: &Corpus) -> Vec<String> {
+    corpus
+        .cases
+        .iter()
+        .filter_map(|case| {
+            let got = decide(&case.action, &corpus.policy, &case.context);
+            mismatch(case, &got).map(|why| format!("[{}] {why}", case.name))
+        })
+        .collect()
+}
+
+/// `None` if every conformance key matches; otherwise the joined differences.
+fn mismatch(case: &Case, got: &Decision) -> Option<String> {
+    let want = &case.expect;
+    let got_owasp = got.owasp.as_ref().map(|clause| clause.0.clone());
+    let got_policy_id = got.policy_id.as_ref().map(|id| id.0.clone());
+
+    let mut diffs = Vec::new();
+    if got.verdict != want.verdict {
+        diffs.push(format!(
+            "verdict: got {:?}, want {:?}",
+            got.verdict, want.verdict
+        ));
+    }
+    if got.gate_type != want.gate_type {
+        diffs.push(format!(
+            "gate_type: got {:?}, want {:?}",
+            got.gate_type, want.gate_type
+        ));
+    }
+    if got_owasp != want.owasp {
+        diffs.push(format!("owasp: got {got_owasp:?}, want {:?}", want.owasp));
+    }
+    if got_policy_id != want.policy_id {
+        diffs.push(format!(
+            "policy_id: got {got_policy_id:?}, want {:?}",
+            want.policy_id
+        ));
+    }
+
+    if diffs.is_empty() {
+        None
+    } else {
+        Some(diffs.join("; "))
+    }
 }
 
 fn corpus_root() -> PathBuf {
