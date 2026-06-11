@@ -43,8 +43,14 @@ boundary; the matcher/precedence core is replaced by Cedar. Priority order:
      path. Python API is `Policy.compile(schema, policy, entities).decide(action, context)`.
      Per-decision FFI back to ~20µs/call (compile paid once per load); the pure core was
      already split, so the fix was binding-only.
-3. [ ] **Org graph + inheritance resolution.** Cedar entities for org/team/role/user/agent;
-   resolve an agent's effective policy by its position in the graph; policy-on-node cascade.
+3. [x] **Org graph + inheritance resolution (ADR-0020).** Done as data, not engine code:
+   Cedar evaluates hierarchy natively (`parents` + `in` + deny-overrides), so the pure core is
+   untouched. `corpus/org_graph/` declares `Org<-Team<-User<-Agent` membership plus a
+   cross-cutting `Role`, with node-attached + RBAC policies; 9 conformance cases prove cascade,
+   sub-node override (same write Allowed for an eng agent, Denied for a sales agent), RBAC,
+   team-scoped approval, and an org-wide hard deny — all 100% exact-match. Loader generalized to
+   `load_corpus(name)`. Deferred-with-triggers: effective-entity slicing, per-agent policy
+   slicing, multi-org, ReBAC, principal-side ABAC (ADR-0020).
 4. [ ] **Live per-agent hook PEP.** Wire each agent's PreToolUse hook to the plane (the
    `repo_alignment` exit-2-to-deny hook is the primitive).
 5. [ ] **Decision-log record** (OPA/AAT-shaped JSON) at the host audit sink.
