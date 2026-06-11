@@ -8,17 +8,25 @@ use pyo3::prelude::*;
 
 mod wire;
 
-/// Decide a verdict from a JSON action, Cedar policy source, Cedar entity JSON, and a
-/// JSON context, returning a JSON decision. A parse failure surfaces as `ValueError`.
+/// Decide a verdict from a JSON action, the Cedar org policy (schema source, policy source,
+/// entity JSON), and a JSON context, returning a JSON decision. A parse or schema-
+/// validation failure surfaces as `ValueError`.
 #[pyfunction]
 fn decide_json(
     action_json: &str,
+    schema_cedar: &str,
     policy_cedar: &str,
     entities_json: &str,
     context_json: &str,
 ) -> PyResult<String> {
-    wire::decide_json(action_json, policy_cedar, entities_json, context_json)
-        .map_err(|err| PyValueError::new_err(err.to_string()))
+    wire::decide_json(
+        action_json,
+        schema_cedar,
+        policy_cedar,
+        entities_json,
+        context_json,
+    )
+    .map_err(|err| PyValueError::new_err(err.to_string()))
 }
 
 #[pymodule]

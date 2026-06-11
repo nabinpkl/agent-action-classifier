@@ -1,8 +1,8 @@
-//! The wire between the Python host and the PDP: parse a canonical action, a Cedar policy,
-//! a Cedar entity store, and a context in; serialize a decision out. serde lives here at
-//! the edge, never in the core. ADR-0017: the policy is now Cedar source text and the
-//! entities are Cedar's entity JSON, both parsed by Cedar itself, so the bespoke policy
-//! DTOs are gone; only the action and context need mapping.
+//! The wire between the Python host and the PDP: parse a canonical action, the Cedar org
+//! policy (schema + policies + entities), and a context in; serialize a decision out.
+//! serde lives here at the edge, never in the core. ADR-0017/0018: the policy is Cedar
+//! schema + policy source + entity JSON, validated as a unit by `Policy::from_sources`, so
+//! the bespoke policy DTOs are gone; only the action and context need mapping.
 //!
 //! Errors use anyhow: the binding surfaces them to Python as ValueError, nobody branches
 //! on variants.
@@ -18,12 +18,13 @@ use policy_decision::decide;
 use policy_decision::decision::{Decision, GateType, Verdict};
 use policy_decision::policy::{Lane, Policy};
 
-use cedar_policy::{Entities, PolicySet};
-
-/// Parse the inputs, run `decide`, and serialize the decision. `policy_cedar` is Cedar
-/// policy source; `entities_json` is Cedar's entity JSON (the org model / PAP).
+/// Parse the inputs, run `decide`, and serialize the decision. The org policy is three
+/// Cedar artifacts authored by the central plane (PAP): `schema_cedar` (the contract),
+/// `policy_cedar` (the rules), and `entities_json` (the entity store). They are validated
+/// as a unit; a parse or schema-validation failure surfaces to Python as `ValueError`.
 pub fn decide_json(
     action_json: &str,
+    schema_cedar: &str,
     policy_cedar: &str,
     entities_json: &str,
     context_json: &str,
@@ -31,12 +32,8 @@ pub fn decide_json(
     let action: CanonicalAction = serde_json::from_str::<ActionDto>(action_json)?.try_into()?;
     let context: Context = serde_json::from_str::<ContextDto>(context_json)?.into();
 
-    let policies: PolicySet = policy_cedar
-        .parse()
-        .map_err(|e| anyhow!("parsing Cedar policy: {e}"))?;
-    let entities = Entities::from_json_str(entities_json, None)
-        .map_err(|e| anyhow!("parsing entities: {e}"))?;
-    let policy = Policy::new(policies, entities);
+    let policy = Policy::from_sources(schema_cedar, policy_cedar, entities_json)
+        .map_err(|e| anyhow!("{e}"))?;
 
     let decision = decide(&action, &policy, &context);
     Ok(serde_json::to_string(&DecisionDto::from(&decision))?)

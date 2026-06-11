@@ -1,0 +1,17 @@
+// Cedar schema for the ASI05 data-scope model (ADR-0018): the contract the policies and
+// entity store are validated against at load. With a schema, a typo in an attribute or a
+// policy referencing an undeclared attribute fails loud at load instead of silently
+// becoming a non-match. The org graph (Org/Team/Role/User + parents) lands in TASKS #3
+// and extends this schema; for now the principal is a flat Agent.
+
+entity Agent;
+
+entity DataScope = {
+    sensitivity: String,
+    pii: Bool,
+};
+
+action read, write, share, delete, execute appliesTo {
+    principal: [Agent],
+    resource: [DataScope],
+};

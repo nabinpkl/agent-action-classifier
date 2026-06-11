@@ -1,7 +1,7 @@
 //! Conformance-corpus loader: parse the external spec under `corpus/asi05/` into the
-//! domain types, mapping at this edge. The policy is Cedar source + a Cedar entity store
-//! (Cedar owns that parsing now, ADR-0017); only the cases (actions + context +
-//! expectations) need bespoke DTOs.
+//! domain types, mapping at this edge. The org policy is a Cedar schema + policy source +
+//! entity store, validated as a unit by `Policy::from_sources` (ADR-0017, ADR-0018); only
+//! the cases (actions + context + expectations) need bespoke DTOs.
 //!
 //! This is test/bench harness, not library API: nobody branches on its failure modes,
 //! so it uses `anyhow` (per the rust-coding skill, anyhow for glue). The DTOs mirror the
@@ -10,7 +10,6 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context as _, Result, anyhow, bail};
-use cedar_policy::{Entities, PolicySet};
 use serde::Deserialize;
 
 use policy_decision::canonical_action::{
@@ -53,7 +52,11 @@ pub struct Asi05Corpus {
 /// Fails loud: a missing file, malformed Cedar/JSON, or an empty case set all error.
 pub fn load_asi05() -> Result<Asi05Corpus> {
     let dir = corpus_root().join("asi05");
-    let policy = load_policy(&dir.join("policy.cedar"), &dir.join("entities.json"))?;
+    let policy = load_policy(
+        &dir.join("policy.cedarschema"),
+        &dir.join("policy.cedar"),
+        &dir.join("entities.json"),
+    )?;
     let cases = load_cases(&dir.join("cases.json"))?;
     if cases.is_empty() {
         bail!(
@@ -70,19 +73,18 @@ fn corpus_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus")
 }
 
-fn load_policy(policy_path: &Path, entities_path: &Path) -> Result<Policy> {
+fn load_policy(schema_path: &Path, policy_path: &Path, entities_path: &Path) -> Result<Policy> {
+    let schema_src = std::fs::read_to_string(schema_path)
+        .with_context(|| format!("reading {}", schema_path.display()))?;
     let policy_src = std::fs::read_to_string(policy_path)
         .with_context(|| format!("reading {}", policy_path.display()))?;
-    let policies: PolicySet = policy_src
-        .parse()
-        .map_err(|e| anyhow!("parsing {}: {e}", policy_path.display()))?;
-
     let entities_src = std::fs::read_to_string(entities_path)
         .with_context(|| format!("reading {}", entities_path.display()))?;
-    let entities = Entities::from_json_str(&entities_src, None)
-        .map_err(|e| anyhow!("parsing {}: {e}", entities_path.display()))?;
 
-    Ok(Policy::new(policies, entities))
+    // Cedar owns schema/policy/entity parsing and validation (ADR-0018); the loader just
+    // feeds it the three sources and surfaces a validation failure loudly.
+    Policy::from_sources(&schema_src, &policy_src, &entities_src)
+        .with_context(|| format!("loading the org policy from {}", schema_path.display()))
 }
 
 fn load_cases(path: &Path) -> Result<Vec<Case>> {

@@ -39,23 +39,24 @@ const REQUIRES_APPROVAL: &str = "requires_approval";
 /// escalate lane is returned, never run here.
 #[must_use]
 pub fn decide(action: &CanonicalAction, policy: &Policy, context: &Context) -> Decision {
-    let request = build_request(action);
+    let request = build_request(action, policy);
     let response = Authorizer::new().is_authorized(&request, policy.policies(), policy.entities());
     interpret(action, policy, context, &response)
 }
 
-/// Build the Cedar request `<principal, action, resource, {}>` from the canonical action.
-/// The entity ids come from validated strings and the type names are constants, so a
-/// build failure is a broken invariant (panic), not a recoverable case.
-fn build_request(action: &CanonicalAction) -> Request {
+/// Build the Cedar request `<principal, action, resource, {}>` from the canonical action,
+/// validated against the policy's schema. The entity ids come from validated strings, the
+/// type names are constants, and the closed `ActionKind` set maps only to schema-declared
+/// actions, so a build failure is a broken invariant (panic), not a recoverable case.
+fn build_request(action: &CanonicalAction, policy: &Policy) -> Request {
     Request::new(
         euid(AGENT_TYPE, &action.principal.0),
         euid(ACTION_TYPE, action.action.as_cedar_id()),
         euid(SCOPE_TYPE, &action.resource.0),
         CedarContext::empty(),
-        None,
+        Some(policy.schema()),
     )
-    .expect("cedar request from a canonical action is always valid (no schema)")
+    .expect("cedar request from a canonical action is schema-valid by construction")
 }
 
 fn euid(type_name: &str, id: &str) -> EntityUid {

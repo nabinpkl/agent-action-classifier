@@ -16,17 +16,21 @@ __all__ = ["decide"]
 
 def decide(
     action: dict[str, Any],
+    schema: str,
     policy: str,
     entities: list[dict[str, Any]],
     context: dict[str, Any],
 ) -> dict[str, Any]:
     """Decide a verdict for one canonical action under an org policy and context.
 
-    `action` and `context` are plain dicts shaped like the wire in SPEC.md. `policy` is
-    Cedar policy source text and `entities` is Cedar's entity JSON (the org model / PAP);
-    both are parsed by Cedar at the edge. The return is the decision dict (verdict,
-    gate_type, owasp, policy_id, lane, rationale). The decision happens in Rust/Cedar;
-    this only marshals across the boundary.
+    `action` and `context` are plain dicts shaped like the wire in SPEC.md. The org policy
+    is three Cedar artifacts authored by the central plane (PAP): `schema` (the contract
+    source), `policy` (the rules source), and `entities` (Cedar's entity JSON). They are
+    validated as a unit at the edge; drift raises ValueError. The return is the decision
+    dict (verdict, gate_type, owasp, policy_id, lane, rationale). The decision happens in
+    Rust/Cedar; this only marshals across the boundary.
     """
-    result = _decide_json(json.dumps(action), policy, json.dumps(entities), json.dumps(context))
+    result = _decide_json(
+        json.dumps(action), schema, policy, json.dumps(entities), json.dumps(context)
+    )
     return json.loads(result)
