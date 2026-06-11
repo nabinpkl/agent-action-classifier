@@ -1,8 +1,9 @@
 #!/bin/sh
-# Stop hook: on a code-touching turn, elicit a one-pass, evidence-backed self-review in
-# the agent's final message. It blocks only the agent's *stop* once (stop_hook_active
-# guards a second pass), never an edit or a user action. Fails loud only on our own
-# failure. The human reading the acknowledgment is the gate. See docs/adr/0013.
+# Stop hook: on a code-touching turn, elicit a concise, risk-scaled self-review plus next
+# directions in the agent's final message. Detail scales to the change: mundane work stays
+# brief, risks/tradeoffs get called out. It blocks only the agent's *stop* once
+# (stop_hook_active guards a second pass), never an edit or a user action. Fails loud only
+# on our own failure. The human reading the acknowledgment is the gate. See docs/adr/0013.
 
 case "$0" in */*) d=${0%/*} ;; *) d=. ;; esac
 DIR=$(CDPATH= cd -- "$d" && pwd)
@@ -37,7 +38,7 @@ for a in $AREAS; do
 done
 SKILLS=${SKILLS# }
 
-REASON="This turn changed: $AREAS. In your FINAL message, give an evidence-backed self-review, not a bare \"done\": (1) which of the relevant skills ($SKILLS) you consulted and HOW each concretely shaped the change; (2) what you CHANGED to comply with AGENTS.md and those skills, and what you deliberately did NOT change and why (justification); (3) if a rule or nudge looks stale versus the architecture, surface it to the user."
+REASON="This turn changed: $AREAS. In your FINAL message, keep it proportional to the change: (1) briefly say what changed and which of the relevant skills ($SKILLS) shaped it — one or two lines is enough for mundane work, do not force a justification; (2) call out any real risk, tradeoff, or deliberate non-obvious choice plainly, and skip this if there is none; (3) if a rule or nudge looks stale versus the architecture, flag it; (4) end with the AGENTS.md next-directions list — 2-3 one-line numbered options, the top next step in this arc plus at least one genuine pivot."
 
 # Block-to-continue via exit 2 + reason on stderr. This is the cross-runtime mechanism:
 # Codex 0.137 rejects the JSON {decision:"block"} shape ("invalid stop hook JSON output",
