@@ -1,0 +1,8 @@
+[
+  { "glob": "**/.env", "scope": "secrets" },
+  { "glob": "**/secrets/**", "scope": "secrets" },
+  { "glob": "**/*.pem", "scope": "secrets" },
+  { "glob": "**/*.key", "scope": "secrets" },
+  { "glob": "**/*.config.*", "scope": "app-config" },
+  { "glob": "**/settings.json", "scope": "app-config" }
+]

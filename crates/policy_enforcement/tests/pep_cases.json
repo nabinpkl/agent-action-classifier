@@ -1,0 +1,37 @@
+[
+  {
+    "name": "write_env_is_hard_denied",
+    "payload": { "tool_name": "Write", "tool_input": { "file_path": "/repo/experiments/.env" }, "session_id": "s1" },
+    "expect": { "exit": 2, "stderr_contains": "ASI05" }
+  },
+  {
+    "name": "write_pem_is_hard_denied",
+    "payload": { "tool_name": "Edit", "tool_input": { "file_path": "/repo/keys/server.pem" }, "session_id": "s1" },
+    "expect": { "exit": 2, "stderr_contains": "deny-secret-write" }
+  },
+  {
+    "name": "write_config_requires_approval_asks",
+    "payload": { "tool_name": "Edit", "tool_input": { "file_path": "/repo/app.config.json" }, "session_id": "s1" },
+    "expect": { "exit": 0, "stdout_contains": "\"ask\"" }
+  },
+  {
+    "name": "write_unmapped_source_proceeds",
+    "payload": { "tool_name": "Write", "tool_input": { "file_path": "/repo/src/main.rs" }, "session_id": "s1" },
+    "expect": { "exit": 0, "stdout_empty": true }
+  },
+  {
+    "name": "codex_apply_patch_to_env_is_denied",
+    "payload": { "tool_name": "apply_patch", "tool_input": { "command": "*** Begin Patch\n*** Update File: /repo/.env\n+leak=1\n*** End Patch" }, "session_id": "s2" },
+    "expect": { "exit": 2, "stderr_contains": "ASI05" }
+  },
+  {
+    "name": "read_tool_is_ungoverned_even_on_a_secret_path",
+    "payload": { "tool_name": "Read", "tool_input": { "file_path": "/repo/.env" }, "session_id": "s1" },
+    "expect": { "exit": 0, "stdout_empty": true }
+  },
+  {
+    "name": "malformed_payload_fails_closed",
+    "payload_raw": "{not json",
+    "expect": { "exit": 2, "stderr_contains": "failing closed" }
+  }
+]

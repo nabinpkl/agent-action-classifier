@@ -1,0 +1,134 @@
+//! `enforce`: the agent-action governance PEP, realized as a per-call command-hook binary
+//! (ADR-0021). Reads a provider PreToolUse payload on stdin, normalizes it to the canonical
+//! action, decides it against the org policy (the compiled Cedar handle), and returns the
+//! verdict to the provider: allow (exit 0) / deny (exit 2 + reason on stderr) / ask
+//! (`permissionDecision` JSON on stdout). One binary serves both Claude and Codex.
+//!
+//! Fails CLOSED: any internal error (bad args/payload/plane) becomes a deny with a loud
+//! reason, never a silent fail-open. Ungoverned tool calls (an ungoverned tool kind, or a
+//! path that maps to no scope) short-circuit to a plain proceed before any policy is loaded,
+//! so the live hook is cheap and low-noise on the common case.
+
+mod hook_response;
+mod normalize;
+mod tool_call;
+
+use std::io::Read as _;
+use std::process::ExitCode;
+use std::time::{SystemTime, UNIX_EPOCH};
+
+use policy_decision::canonical_action::Timestamp;
+use policy_decision::context::Context;
+use policy_decision::decide;
+use policy_decision::policy::Policy;
+
+use crate::hook_response::HookResponse;
+use crate::normalize::ResourceMap;
+use crate::tool_call::ToolCall;
+
+fn main() -> ExitCode {
+    match run() {
+        Ok(response) => response.emit(),
+        Err(err) => hook_response::fail_closed(&err).emit(),
+    }
+}
+
+fn run() -> Result<HookResponse, String> {
+    let args = Args::parse()?;
+
+    let mut payload = String::new();
+    std::io::stdin()
+        .read_to_string(&mut payload)
+        .map_err(|e| format!("reading stdin: {e}"))?;
+    let call = ToolCall::parse(&payload).map_err(|e| format!("parsing payload: {e}"))?;
+
+    // Ungoverned tool kind -> proceed without touching policy or config (the common path).
+    let Some(action_kind) = normalize::action_for(&call.tool_name) else {
+        return Ok(hook_response::proceed());
+    };
+    let Some(path) = call.target_path.as_deref() else {
+        return Ok(hook_response::proceed());
+    };
+
+    let resource_map = load_resource_map(&args.resource_map)?;
+    let Some(scope) = resource_map.scope_for(path) else {
+        return Ok(hook_response::proceed()); // governed tool, ungoverned path
+    };
+
+    let action = normalize::canonical_action(
+        action_kind,
+        scope,
+        &call,
+        &args.agent_id,
+        &args.provider,
+        now(),
+    );
+    let policy = load_plane(&args.plane)?;
+    let decision = decide(&action, &policy, &Context::default());
+    Ok(hook_response::from_decision(&decision))
+}
+
+fn load_resource_map(path: &str) -> Result<ResourceMap, String> {
+    let json =
+        std::fs::read_to_string(path).map_err(|e| format!("reading resource map {path}: {e}"))?;
+    ResourceMap::from_json(&json)
+}
+
+/// Load and compile the plane (the three PAP artifacts) from a directory. v0 reads them per
+/// call (the documented ~0.3ms parse); the warm-handle HTTP sidecar is the roadmap (ADR-0021).
+fn load_plane(dir: &str) -> Result<Policy, String> {
+    let schema = read(dir, "policy.cedarschema")?;
+    let policy = read(dir, "policy.cedar")?;
+    let entities = read(dir, "entities.json")?;
+    Policy::from_sources(&schema, &policy, &entities).map_err(|e| format!("compiling plane: {e}"))
+}
+
+fn read(dir: &str, file: &str) -> Result<String, String> {
+    std::fs::read_to_string(format!("{dir}/{file}")).map_err(|e| format!("reading {file}: {e}"))
+}
+
+fn now() -> Timestamp {
+    let ns = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |d| i64::try_from(d.as_nanos()).unwrap_or(i64::MAX));
+    Timestamp(ns)
+}
+
+/// The hook command's flags: where the plane and resource map live, and who this agent is.
+struct Args {
+    plane: String,
+    resource_map: String,
+    agent_id: String,
+    provider: String,
+}
+
+impl Args {
+    fn parse() -> Result<Args, String> {
+        let mut plane = None;
+        let mut resource_map = None;
+        let mut agent_id = None;
+        let mut provider = None;
+        let mut it = std::env::args().skip(1);
+        while let Some(flag) = it.next() {
+            let value = match flag.as_str() {
+                "--plane" | "--resource-map" | "--agent-id" | "--provider" => it
+                    .next()
+                    .ok_or_else(|| format!("missing value for {flag}"))?,
+                other => return Err(format!("unknown argument: {other}")),
+            };
+            match flag.as_str() {
+                "--plane" => plane = Some(value),
+                "--resource-map" => resource_map = Some(value),
+                "--agent-id" => agent_id = Some(value),
+                "--provider" => provider = Some(value),
+                _ => unreachable!(),
+            }
+        }
+        Ok(Args {
+            plane: plane.ok_or("missing --plane")?,
+            resource_map: resource_map.ok_or("missing --resource-map")?,
+            agent_id: agent_id.ok_or("missing --agent-id")?,
+            provider: provider.unwrap_or_else(|| "unknown".to_string()),
+        })
+    }
+}

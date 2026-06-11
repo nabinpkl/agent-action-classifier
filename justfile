@@ -30,6 +30,10 @@ fmt:
     uv run ruff format
     uv run ruff check --fix
 
+# build the PEP command-hook binary (the `enforce` executable wired into provider hooks)
+build-hook:
+    cargo build --release -p policy_enforcement
+
 # stage-1 latency benchmark (reference-or-frontier); lands with benches/
 bench:
     cargo bench --workspace
