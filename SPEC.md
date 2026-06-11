@@ -35,7 +35,7 @@ on, especially [ADR-0017](docs/adr/0017-adopt-cedar-engine-org-modeled-central-p
 | Role | Responsibility | Side |
 |---|---|---|
 | **PDP** | decide allow/deny from request + policies + entities (Cedar) | Cedar engine |
-| **PEP** | each agent's PreToolUse hook: intercept the tool call, resolve effective policy, enforce | host |
+| **PEP** | each agent's PreToolUse hook: intercept the tool call, resolve effective policy, enforce | `enforce` binary |
 | **PAP** | the central plane: author + hold the org graph and Cedar policies; cascade by node | host |
 | **PIP** | supply context (scoped approvals; later, trajectory) | host |
 | **Audit sink** | persist the decision record | host |
@@ -43,6 +43,16 @@ on, especially [ADR-0017](docs/adr/0017-adopt-cedar-engine-org-modeled-central-p
 
 Source-code dependencies point inward: the decision uses Cedar; the impure edges
 (hooks, plane, context, audit) implement what the decision needs.
+
+The **PEP is realized as `enforce`**, a Rust command-hook binary
+([ADR-0021](docs/adr/0021-pep-as-rust-command-hook-binary.md)), not the Python host: one
+artifact serves both Claude and Codex (their PreToolUse payloads converged), it normalizes the
+payload to the canonical action and `decide`s, and it returns allow (exit 0) / deny (exit 2 +
+reason) / ask (`permissionDecision` JSON). It **fails closed** on internal error (the binary owns
+its exit code). Per-call cost is ~5ms measured (process spawn + plane compile + ~15µs decide);
+the warm-handle HTTP sidecar is the roadmap for when per-call rate or policy-set size makes that
+material. `codex exec` fires no hooks (interactive Codex only); the Python host remains for the
+programmatic FFI and the future judge.
 
 ## Data contracts
 

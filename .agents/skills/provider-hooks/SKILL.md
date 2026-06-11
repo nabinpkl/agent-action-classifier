@@ -58,9 +58,40 @@ Feed the rationale back to the agent via `additionalContext`.
   `allow_managed_hooks_only = true` runs only enterprise-managed hooks and bypasses
   user/project/plugin hooks (the org-supremacy teeth).
 
-## The PDP wire
+## Verified behavior (probed 2026-06-11: Claude Code 2.1.173, Codex 0.139.0)
 
-Prefer the **HTTP hook to a local PDP service**: one endpoint receives the canonical
-action and returns `deny`/`ask`/`allow`, instead of N per-tool shell scripts. This is
-the sidecar shape. For LangGraph, call the PDP in-process; use a `command` hook only
-where HTTP is unavailable.
+- **Hook config resolves at the git root** for both CLIs. A nested git repo isolates hooks:
+  `experiments/.git` makes `experiments/` its own root, so its `.claude`/`.codex` govern only
+  sessions launched there (the safe live sandbox). `${CLAUDE_PROJECT_DIR}` = that git root;
+  `CODEX_PROJECT_DIR` is unset (use a cwd-relative or absolute hook command path).
+- **One `command` hook binary serves both providers:** `tool_name` + `tool_input` converged, and
+  **exit 2 + reason on stderr blocks on both**. Codex `apply_patch` carries the patch text in
+  `tool_input.command` (path in `*** (Add|Update|Delete) File:` headers); Claude `Edit`/`Write`/
+  `MultiEdit` carry `tool_input.file_path`.
+- **`codex exec` fires NO hooks** (re-probed; the v0.137 limit persists). Interactive Codex fires
+  PreToolUse for `Bash` and `apply_patch` — the apply_patch interception bug (openai/codex#16732)
+  is fixed at 0.139. Codex project hooks are trust-gated by hash (`[hooks.state]`); editing the
+  hooks.json re-prompts. PreToolUse-deny does NOT accept `additionalContext` on Codex.
+- **Claude `type:http` fails OPEN** (a down/slow/erroring sidecar lets the tool through, no setting
+  to change it). This is *why the PEP is a `command` binary, not `type:http`*: a binary owns its
+  exit code, so it can fail CLOSED (deny) on error.
+
+## The PDP wire (realized: the `enforce` command-hook binary, ADR-0021)
+
+The PEP is `enforce` (`crates/policy_enforcement`): one binary, invoked as a `command` hook by
+both providers, that normalizes the payload and returns allow (exit 0) / deny (exit 2 + reason) /
+ask (`permissionDecision` JSON). It fails closed on internal error. Wire it by absolute path with
+the plane + resource map + agent id as flags:
+
+```jsonc
+// .claude/settings.json (Claude) — matcher for the governed mutation tools
+{ "hooks": { "PreToolUse": [ { "matcher": "Write|Edit|MultiEdit", "hooks": [ { "type": "command",
+  "command": "/abs/target/release/enforce --plane /abs/corpus/asi05 --resource-map /abs/corpus/asi05/resource_map.json --agent-id agent-eng --provider claude",
+  "timeout": 10 } ] } ] } }
+// .codex/hooks.json (Codex) — same binary, matcher "apply_patch", --provider codex
+```
+
+The **warm-handle HTTP sidecar** (this section's former recommendation) stays the *roadmap* for
+when per-call rate or policy-set size makes the ~2ms spawn + ~0.3ms parse material; it would reuse
+the same binary's normalization and the compiled `Policy`, changing only the transport. For
+LangGraph, call the PDP in-process (no hook).

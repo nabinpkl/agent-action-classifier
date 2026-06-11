@@ -51,8 +51,16 @@ boundary; the matcher/precedence core is replaced by Cedar. Priority order:
    team-scoped approval, and an org-wide hard deny — all 100% exact-match. Loader generalized to
    `load_corpus(name)`. Deferred-with-triggers: effective-entity slicing, per-agent policy
    slicing, multi-org, ReBAC, principal-side ABAC (ADR-0020).
-4. [ ] **Live per-agent hook PEP.** Wire each agent's PreToolUse hook to the plane (the
-   `repo_alignment` exit-2-to-deny hook is the primitive).
+4. [x] **Live per-agent hook PEP (ADR-0021).** Done as `enforce`, a Rust command-hook binary
+   (`crates/policy_enforcement`) over the core: it normalizes a provider PreToolUse payload to
+   the canonical action, `decide`s it against the org policy, and returns the verdict (allow=exit
+   0, deny=exit 2 + reason, escalate=`permissionDecision:"ask"`). **One binary serves both Claude
+   and Codex** (converged payloads); it **fails closed** on internal error (the binary owns its
+   exit code, unlike Claude `type:http`). Chosen over the warm-handle HTTP sidecar (no daemon, one
+   artifact) at ~5ms/call measured; the sidecar stays the documented latency roadmap. Reuses the
+   asi05 plane via a new `resource_map.json` (glob->scope), so the demo needs zero new policy. v0
+   governs mutation tools only. Probe-verified groundwork: a nested git repo (`experiments/`)
+   isolates hooks for both providers, and `codex exec` fires no hooks (interactive only).
 5. [ ] **Decision-log record** (OPA/AAT-shaped JSON) at the host audit sink.
 6. [ ] **Semantic judge lane:** host LLM judge for `Escalate`, graded eval (80-90%, never
    exact-match).

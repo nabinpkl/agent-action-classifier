@@ -32,6 +32,11 @@ coverage/
 # Tool caches
 .ruff_cache/
 
+# Live PEP sandbox: its own nested git repo (probe-verified hook isolation, ADR-0021).
+# A disposable harness for wiring the `enforce` hook against real Claude/Codex sessions;
+# the durable wiring snippet lives in the provider-hooks skill, not here.
+experiments/
+
 # Python bytecode + compiled extension built into the source tree (maturin develop)
 __pycache__/
 *.py[cod]
