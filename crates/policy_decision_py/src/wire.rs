@@ -1,8 +1,9 @@
-//! The wire between the Python host and the PDP: parse a canonical action, the Cedar org
-//! policy (schema + policies + entities), and a context in; serialize a decision out.
-//! serde lives here at the edge, never in the core. ADR-0017/0018: the policy is Cedar
-//! schema + policy source + entity JSON, validated as a unit by `Policy::from_sources`, so
-//! the bespoke policy DTOs are gone; only the action and context need mapping.
+//! The wire between the Python host and the PDP: parse a canonical action and a context in;
+//! serialize a decision out, against an already-compiled `Policy`. serde lives here at the
+//! edge, never in the core. ADR-0019: the org policy is compiled once into a `Policy`
+//! (parse-once handle) and reused for many decisions, so only the per-decision action and
+//! context cross this wire; the schema/policy/entity parsing happens at compile time in the
+//! binding's `CompiledPolicy::new`, not here on the hot path.
 //!
 //! Errors use anyhow: the binding surfaces them to Python as ValueError, nobody branches
 //! on variants.
@@ -14,28 +15,18 @@ use policy_decision::canonical_action::{
     ActionKind, AgentId, CanonicalAction, Provenance, ResourceId, SessionId, Timestamp,
 };
 use policy_decision::context::{Approval, ApprovalScope, Context, UserId};
-use policy_decision::decide;
+use policy_decision::decide as decide_action;
 use policy_decision::decision::{Decision, GateType, Verdict};
 use policy_decision::policy::{Lane, Policy};
 
-/// Parse the inputs, run `decide`, and serialize the decision. The org policy is three
-/// Cedar artifacts authored by the central plane (PAP): `schema_cedar` (the contract),
-/// `policy_cedar` (the rules), and `entities_json` (the entity store). They are validated
-/// as a unit; a parse or schema-validation failure surfaces to Python as `ValueError`.
-pub fn decide_json(
-    action_json: &str,
-    schema_cedar: &str,
-    policy_cedar: &str,
-    entities_json: &str,
-    context_json: &str,
-) -> Result<String> {
+/// Parse the per-decision inputs, run `decide` against the compiled `policy`, and serialize
+/// the decision. The hot path: no schema/policy/entity parsing (that is paid once at
+/// compile time). A malformed action or context surfaces to Python as `ValueError`.
+pub fn decide(policy: &Policy, action_json: &str, context_json: &str) -> Result<String> {
     let action: CanonicalAction = serde_json::from_str::<ActionDto>(action_json)?.try_into()?;
     let context: Context = serde_json::from_str::<ContextDto>(context_json)?.into();
 
-    let policy = Policy::from_sources(schema_cedar, policy_cedar, entities_json)
-        .map_err(|e| anyhow!("{e}"))?;
-
-    let decision = decide(&action, &policy, &context);
+    let decision = decide_action(&action, policy, &context);
     Ok(serde_json::to_string(&DecisionDto::from(&decision))?)
 }
 

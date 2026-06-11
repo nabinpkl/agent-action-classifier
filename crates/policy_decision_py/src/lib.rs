@@ -6,31 +6,41 @@
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
+use policy_decision::policy::Policy;
+
 mod wire;
 
-/// Decide a verdict from a JSON action, the Cedar org policy (schema source, policy source,
-/// entity JSON), and a JSON context, returning a JSON decision. A parse or schema-
-/// validation failure surfaces as `ValueError`.
-#[pyfunction]
-fn decide_json(
-    action_json: &str,
-    schema_cedar: &str,
-    policy_cedar: &str,
-    entities_json: &str,
-    context_json: &str,
-) -> PyResult<String> {
-    wire::decide_json(
-        action_json,
-        schema_cedar,
-        policy_cedar,
-        entities_json,
-        context_json,
-    )
-    .map_err(|err| PyValueError::new_err(err.to_string()))
+/// A compiled org policy: the Cedar schema + policies + entity store parsed and validated
+/// once into an in-memory handle, then reused for many decisions (ADR-0019, the parse-once
+/// lifecycle). Construction is the compile step (paid once per policy load); `decide` is
+/// the hot path and does no policy parsing.
+#[pyclass]
+struct CompiledPolicy {
+    policy: Policy,
+}
+
+#[pymethods]
+impl CompiledPolicy {
+    /// Compile the three Cedar artifacts into the handle: `schema_cedar` (the contract),
+    /// `policy_cedar` (the rules), and `entities_json` (the entity store). They are
+    /// validated as a unit; a parse or schema-validation failure surfaces as `ValueError`.
+    #[new]
+    fn new(schema_cedar: &str, policy_cedar: &str, entities_json: &str) -> PyResult<Self> {
+        let policy = Policy::from_sources(schema_cedar, policy_cedar, entities_json)
+            .map_err(|err| PyValueError::new_err(err.to_string()))?;
+        Ok(Self { policy })
+    }
+
+    /// Decide a verdict for one JSON action under a JSON context, returning a JSON decision.
+    /// A malformed action or context surfaces as `ValueError`.
+    fn decide(&self, action_json: &str, context_json: &str) -> PyResult<String> {
+        wire::decide(&self.policy, action_json, context_json)
+            .map_err(|err| PyValueError::new_err(err.to_string()))
+    }
 }
 
 #[pymodule]
 fn _core(module: &Bound<'_, PyModule>) -> PyResult<()> {
-    module.add_function(wrap_pyfunction!(decide_json, module)?)?;
+    module.add_class::<CompiledPolicy>()?;
     Ok(())
 }

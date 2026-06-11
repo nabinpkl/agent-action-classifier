@@ -1,12 +1,13 @@
-"""End-to-end test of the FFI boundary: build an action + Cedar policy + entities as the
-wire shapes, cross into the Cedar-backed PDP via `agent_action_classifier.decide`, and
-check the verdict. Also reports a rough per-call latency so the crossing's cost is visible
-(informational, not asserted). Stdlib unittest, no extra deps."""
+"""End-to-end test of the FFI boundary: compile a Cedar org policy once into a
+`agent_action_classifier.Policy` handle, then decide actions against it (ADR-0019, the
+parse-once lifecycle) and check the verdict. Also reports a rough per-decision latency, with
+compilation excluded from the loop, so the number is the true hot-path cost. Stdlib
+unittest, no extra deps."""
 
 import time
 import unittest
 
-from agent_action_classifier import decide
+from agent_action_classifier import Policy
 
 # Cedar schema (the contract / PAP): the policy and entities are validated against it at
 # the edge (ADR-0018), so a typo'd attribute fails loud instead of silently not matching.
@@ -57,35 +58,54 @@ def write_action(resource: str) -> dict:
 
 
 class DecideOverFfi(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        # Compile the org policy once (the parse-once handle); every test decides against it.
+        cls.policy = Policy.compile(SCHEMA, POLICY, ENTITIES)
+
     def test_hard_deny_write_secret_scope(self):
-        decision = decide(write_action("secrets"), SCHEMA, POLICY, ENTITIES, {"approvals": []})
+        decision = self.policy.decide(write_action("secrets"), {"approvals": []})
         self.assertEqual(decision["verdict"], "deny")
         self.assertEqual(decision["gate_type"], "hard")
         self.assertEqual(decision["owasp"], "ASI05")
         self.assertEqual(decision["policy_id"], "deny-secret-write")
 
     def test_no_rule_defaults_to_escalate(self):
-        decision = decide(write_action("telemetry"), SCHEMA, POLICY, ENTITIES, {"approvals": []})
+        decision = self.policy.decide(write_action("telemetry"), {"approvals": []})
         self.assertEqual(decision["verdict"], "escalate")
         self.assertIsNone(decision["owasp"])
         self.assertIsNone(decision["policy_id"])
 
-    def test_bad_json_input_raises_value_error(self):
+    def test_bad_action_input_raises_value_error(self):
         # seq must be an integer; a string must surface as ValueError, not a silent pass.
         bad = write_action("secrets")
         bad["seq"] = "not-an-int"
         with self.assertRaises(ValueError):
-            decide(bad, SCHEMA, POLICY, ENTITIES, {"approvals": []})
+            self.policy.decide(bad, {"approvals": []})
 
-    def test_report_per_call_latency(self):
+    def test_compile_rejects_schema_violating_policy(self):
+        # `resource.classification` is not in the schema: compilation must fail loud at the
+        # edge (ValueError), not defer a silent non-match to decide time.
+        bad_policy = """
+        @id("typo")
+        permit(principal, action == Action::"read", resource)
+        when { resource.classification == "public" };
+        """
+        with self.assertRaises(ValueError):
+            Policy.compile(SCHEMA, bad_policy, ENTITIES)
+
+    def test_report_per_decision_latency(self):
         action = write_action("secrets")
         ctx = {"approvals": []}
         iterations = 5000
         start = time.perf_counter()
         for _ in range(iterations):
-            decide(action, SCHEMA, POLICY, ENTITIES, ctx)
+            self.policy.decide(action, ctx)
         per_call_us = (time.perf_counter() - start) / iterations * 1_000_000
-        print(f"\n[ffi] decide round-trip (Cedar parse + marshal): {per_call_us:.2f} us/call")
+        # Compilation is excluded (paid once in setUpClass), so this is the true hot path.
+        print(
+            f"\n[ffi] decide hot path (marshal + eval, no policy parse): {per_call_us:.2f} us/call"
+        )
 
 
 if __name__ == "__main__":
