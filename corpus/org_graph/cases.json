@@ -1,0 +1,56 @@
+[
+  {
+    "name": "cascade_org_permit_reaches_deep_agent",
+    "action": { "principal": "agent-sales", "action": "read", "resource": "public-docs" },
+    "context": { "approvals": [] },
+    "expect": { "verdict": "allow", "gate_type": "hard", "owasp": "ASI05", "policy_id": "org-allow-public-read" }
+  },
+  {
+    "name": "org_permit_applies_when_no_subnode_override",
+    "action": { "principal": "agent-eng", "action": "write", "resource": "customer-records" },
+    "context": { "approvals": [] },
+    "expect": { "verdict": "allow", "gate_type": "hard", "owasp": "ASI05", "policy_id": "org-allow-confidential-write" }
+  },
+  {
+    "name": "subnode_forbid_overrides_org_permit",
+    "action": { "principal": "agent-sales", "action": "write", "resource": "customer-records" },
+    "context": { "approvals": [] },
+    "expect": { "verdict": "deny", "gate_type": "hard", "owasp": "ASI05", "policy_id": "sales-forbid-customer-write" }
+  },
+  {
+    "name": "rbac_role_member_allowed",
+    "action": { "principal": "agent-reader", "action": "read", "resource": "customer-records" },
+    "context": { "approvals": [] },
+    "expect": { "verdict": "allow", "gate_type": "hard", "owasp": "ASI05", "policy_id": "reader-role-confidential-read" }
+  },
+  {
+    "name": "rbac_non_member_defaults_to_escalate",
+    "action": { "principal": "agent-eng", "action": "read", "resource": "customer-records" },
+    "context": { "approvals": [] },
+    "expect": { "verdict": "escalate", "gate_type": "soft", "owasp": null, "policy_id": null }
+  },
+  {
+    "name": "team_scoped_approval_without_approval_escalates",
+    "action": { "principal": "agent-eng", "action": "write", "resource": "app-config", "at": 1000 },
+    "context": { "approvals": [] },
+    "expect": { "verdict": "escalate", "gate_type": "soft", "owasp": "ASI05", "policy_id": "eng-approve-config-write" }
+  },
+  {
+    "name": "team_scoped_approval_with_valid_approval_allows_soft",
+    "action": { "principal": "agent-eng", "action": "write", "resource": "app-config", "at": 1000 },
+    "context": { "approvals": [{ "scope": "this_action", "granted_by": "alice", "expires": 2000 }] },
+    "expect": { "verdict": "allow", "gate_type": "soft", "owasp": "ASI05", "policy_id": "eng-approve-config-write" }
+  },
+  {
+    "name": "approval_rule_is_team_scoped_sales_gets_default_escalate",
+    "action": { "principal": "agent-sales", "action": "write", "resource": "app-config", "at": 1000 },
+    "context": { "approvals": [{ "scope": "this_action", "granted_by": "bob", "expires": 2000 }] },
+    "expect": { "verdict": "escalate", "gate_type": "soft", "owasp": null, "policy_id": null }
+  },
+  {
+    "name": "org_hard_deny_secret_write",
+    "action": { "principal": "agent-sales", "action": "write", "resource": "secrets" },
+    "context": { "approvals": [] },
+    "expect": { "verdict": "deny", "gate_type": "hard", "owasp": "ASI05", "policy_id": "org-forbid-secret-write" }
+  }
+]
