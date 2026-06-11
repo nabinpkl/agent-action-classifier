@@ -37,6 +37,12 @@ boundary; the matcher/precedence core is replaced by Cedar. Priority order:
      silently non-matching, before #3 multiplies entity types. Wire + `decide` gained a
      `schema` arg; FFI round-trip rose to ~310µs/call from the per-call schema validation
      (host caching of the parsed `Policy` is the tracked optimization).
+   - [x] **Hardening prefactor (ADR-0019): parse-once compiled handle.** Split the FFI into
+     compile vs decide, the industry policy lifecycle (OPA bundles / Cedar preparse / AVP
+     store): `CompiledPolicy` parses + validates once, `.decide(action, context)` is the hot
+     path. Python API is `Policy.compile(schema, policy, entities).decide(action, context)`.
+     Per-decision FFI back to ~20µs/call (compile paid once per load); the pure core was
+     already split, so the fix was binding-only.
 3. [ ] **Org graph + inheritance resolution.** Cedar entities for org/team/role/user/agent;
    resolve an agent's effective policy by its position in the graph; policy-on-node cascade.
 4. [ ] **Live per-agent hook PEP.** Wire each agent's PreToolUse hook to the plane (the
