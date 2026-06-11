@@ -21,18 +21,21 @@ TUPLES=$(aa_turn_tuples "$INPUT") || aa_fail_loud "could not read/parse the tran
 AREAS=$(aa_turn_touched_areas "$TUPLES")
 [ -n "$AREAS" ] || exit 0 # doc/chat-only turn: stay quiet
 
-# Build the per-area skill pointers for the review instruction. Attention pointers only:
-# name the relevant skills, do not prescribe specific techniques (the skill is the source
-# of truth). /pydantic-models is intentionally not listed by default; it is a conditional
-# pointer in the pre-edit reminder for when data models are actually involved.
+# Build the relevant-skill pointers for the review instruction from skills_for_area (the
+# single source of truth in skill_map.sh), deduped across the touched areas. Attention
+# pointers only: name the skills, do not prescribe techniques. /pydantic-models is not
+# listed here; it is a conditional pointer in the pre-edit reminder for when data models
+# are actually involved.
 SKILLS=""
 for a in $AREAS; do
-	case "$a" in
-	rust) SKILLS="$SKILLS /rust-coding" ;;
-	python) SKILLS="$SKILLS /python-dev-tooling" ;;
-	esac
+	for s in $(skills_for_area "$a"); do
+		case " $SKILLS " in
+		*" $s "*) : ;;
+		*) SKILLS="$SKILLS $s" ;;
+		esac
+	done
 done
-SKILLS="$SKILLS /source-code-organization"
+SKILLS=${SKILLS# }
 
 REASON="This turn changed: $AREAS. In your FINAL message, give an evidence-backed self-review, not a bare \"done\": (1) which of the relevant skills ($SKILLS) you consulted and HOW each concretely shaped the change; (2) what you CHANGED to comply with AGENTS.md and those skills, and what you deliberately did NOT change and why (justification); (3) if a rule or nudge looks stale versus the architecture, surface it to the user."
 

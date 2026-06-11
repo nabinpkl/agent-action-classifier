@@ -18,14 +18,27 @@ path_to_area() {
 	esac
 }
 
-# reminder_for_area AREA -> echoes the one-line reminder for an area (empty if none).
+# skills_for_area AREA -> echoes the relevant skills for an area, space-separated (empty
+# if none). THE single source of truth for the area->skills map: both the pre-edit
+# reminder (below) and the Stop review read it, so the two hooks cannot drift.
+skills_for_area() {
+	case "$1" in
+	rust) echo "/rust-coding /source-code-organization" ;;
+	python) echo "/python-dev-tooling /source-code-organization" ;;
+	*) echo "" ;;
+	esac
+}
+
+# reminder_for_area AREA -> the one-line pre-edit attention pointer (empty if none). The
+# skill names come from skills_for_area so the map lives in exactly one place; only the
+# per-area prose (the label, and the conditional pydantic note) is local here.
 reminder_for_area() {
 	case "$1" in
 	rust)
-		echo "Editing a Rust file. Relevant skills: /rust-coding, /source-code-organization."
+		echo "Editing a Rust file. Relevant skills: $(skills_for_area rust | sed 's/ /, /g')."
 		;;
 	python)
-		echo "Editing a Python file. Relevant skills: /python-dev-tooling, /source-code-organization (and /pydantic-models if you're defining data models)."
+		echo "Editing a Python file. Relevant skills: $(skills_for_area python | sed 's/ /, /g') (and /pydantic-models if you're defining data models)."
 		;;
 	*) echo "" ;;
 	esac
