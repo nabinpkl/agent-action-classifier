@@ -9,11 +9,10 @@
 forbid(principal, action == Action::"write", resource)
 when { resource.sensitivity == "secret" };
 
-// Hard allow: reading a public scope is permitted deterministically.
+// Hard allow: reading a public scope is permitted deterministically. No gate annotation:
+// a plain permit with no @outcome/@lane is a terminal hard allow.
 @id("allow-public-read")
 @owasp("ASI05")
-@outcome("hard_allow")
-@lane("deterministic")
 permit(principal, action == Action::"read", resource)
 when { resource.sensitivity == "public" };
 
@@ -30,7 +29,6 @@ when { resource.sensitivity == "restricted" };
 // lane and shadows any co-applicable hard allow.
 @id("judge-pii-read")
 @owasp("ASI05")
-@outcome("hard_allow")
 @lane("semantic")
 permit(principal, action == Action::"read", resource)
 when { resource.pii == true };

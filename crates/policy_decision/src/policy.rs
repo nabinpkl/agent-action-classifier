@@ -38,27 +38,6 @@ impl Lane {
     }
 }
 
-/// What an applicable permit wants (read from its `@outcome` annotation). A Cedar
-/// `forbid` needs no annotation: it is always a hard deny.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Outcome {
-    /// Explicit allow.
-    HardAllow,
-    /// An implicit deny the org delegates to scoped user approval (checked host-side).
-    RequiresApproval,
-}
-
-impl Outcome {
-    #[must_use]
-    pub fn parse(s: &str) -> Option<Outcome> {
-        match s {
-            "hard_allow" => Some(Outcome::HardAllow),
-            "requires_approval" => Some(Outcome::RequiresApproval),
-            _ => None,
-        }
-    }
-}
-
 /// The authored org policy: the Cedar policy set plus the entity store (data-scope
 /// attributes now; the org graph with inheritance lands in the next slice). Both are
 /// supplied by the central plane (PAP); the loader/binding parses them at the edge.

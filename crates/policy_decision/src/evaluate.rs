@@ -21,7 +21,7 @@ use cedar_policy::{
 use crate::canonical_action::CanonicalAction;
 use crate::context::Context;
 use crate::decision::{Decision, GateType, Verdict};
-use crate::policy::{Lane, Outcome, OwaspClause, Policy, PolicyId};
+use crate::policy::{Lane, OwaspClause, Policy, PolicyId};
 
 // Cedar entity type names for the three request axes. Protocol constants: they are the
 // shape the authored policies are written against (`Agent::"..."`, `Action::"..."`,
@@ -29,6 +29,11 @@ use crate::policy::{Lane, Outcome, OwaspClause, Policy, PolicyId};
 const AGENT_TYPE: &str = "Agent";
 const ACTION_TYPE: &str = "Action";
 const SCOPE_TYPE: &str = "DataScope";
+
+// The `@outcome` annotation value that marks a permit as an implicit deny the org
+// delegates to scoped approval. The only outcome the host discriminates on: a plain
+// permit (no `@outcome`) is a terminal hard allow.
+const REQUIRES_APPROVAL: &str = "requires_approval";
 
 /// Decide a verdict for `action` under `policy` and `context`. Pure and total: the
 /// escalate lane is returned, never run here.
@@ -88,10 +93,7 @@ fn interpret(
         }
         CedarDecision::Allow => {
             // 2a. RequiresApproval: an implicit deny the org delegates to scoped approval.
-            if let Some(id) = reason
-                .iter()
-                .find(|id| outcome(policy, id) == Some(Outcome::RequiresApproval))
-            {
+            if let Some(id) = reason.iter().find(|id| requires_approval(policy, id)) {
                 return if context.has_approval_for(action) {
                     from_policy(
                         policy,
@@ -179,8 +181,8 @@ fn effect(policy: &Policy, id: &CedarPolicyId) -> Option<Effect> {
     policy.policies().policy(id).map(|p| p.effect())
 }
 
-fn outcome(policy: &Policy, id: &CedarPolicyId) -> Option<Outcome> {
-    annotation(policy, id, "outcome").and_then(Outcome::parse)
+fn requires_approval(policy: &Policy, id: &CedarPolicyId) -> bool {
+    annotation(policy, id, "outcome") == Some(REQUIRES_APPROVAL)
 }
 
 fn lane(policy: &Policy, id: &CedarPolicyId) -> Option<Lane> {
