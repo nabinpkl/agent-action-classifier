@@ -9,19 +9,21 @@
 //! path that maps to no scope) short-circuit to a plain proceed before any policy is loaded,
 //! so the live hook is cheap and low-noise on the common case.
 
+mod decision_record;
 mod hook_response;
 mod normalize;
 mod tool_call;
 
 use std::io::Read as _;
 use std::process::ExitCode;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use policy_decision::canonical_action::Timestamp;
 use policy_decision::context::Context;
 use policy_decision::decide;
 use policy_decision::policy::Policy;
 
+use crate::decision_record::DecisionRecord;
 use crate::hook_response::HookResponse;
 use crate::normalize::ResourceMap;
 use crate::tool_call::ToolCall;
@@ -64,7 +66,17 @@ fn run() -> Result<HookResponse, String> {
         now(),
     );
     let policy = load_plane(&args.plane)?;
+
+    let started = Instant::now();
     let decision = decide(&action, &policy, &Context::default());
+    let latency_ns = started.elapsed().as_nanos();
+
+    // Audit the governed decision before returning the verdict. A write failure propagates and
+    // fails closed: an unrecordable decision must not be silently allowed (decision_record).
+    if let Some(path) = &args.audit_log {
+        let record = DecisionRecord::build(&action, &decision, latency_ns, now().0);
+        decision_record::append(path, &record)?;
+    }
     Ok(hook_response::from_decision(&decision))
 }
 
@@ -94,12 +106,14 @@ fn now() -> Timestamp {
     Timestamp(ns)
 }
 
-/// The hook command's flags: where the plane and resource map live, and who this agent is.
+/// The hook command's flags: where the plane and resource map live, who this agent is, and
+/// (optionally) where to append the decision-log record.
 struct Args {
     plane: String,
     resource_map: String,
     agent_id: String,
     provider: String,
+    audit_log: Option<String>,
 }
 
 impl Args {
@@ -108,10 +122,11 @@ impl Args {
         let mut resource_map = None;
         let mut agent_id = None;
         let mut provider = None;
+        let mut audit_log = None;
         let mut it = std::env::args().skip(1);
         while let Some(flag) = it.next() {
             let value = match flag.as_str() {
-                "--plane" | "--resource-map" | "--agent-id" | "--provider" => it
+                "--plane" | "--resource-map" | "--agent-id" | "--provider" | "--audit-log" => it
                     .next()
                     .ok_or_else(|| format!("missing value for {flag}"))?,
                 other => return Err(format!("unknown argument: {other}")),
@@ -121,6 +136,7 @@ impl Args {
                 "--resource-map" => resource_map = Some(value),
                 "--agent-id" => agent_id = Some(value),
                 "--provider" => provider = Some(value),
+                "--audit-log" => audit_log = Some(value),
                 _ => unreachable!(),
             }
         }
@@ -129,6 +145,7 @@ impl Args {
             resource_map: resource_map.ok_or("missing --resource-map")?,
             agent_id: agent_id.ok_or("missing --agent-id")?,
             provider: provider.unwrap_or_else(|| "unknown".to_string()),
+            audit_log,
         })
     }
 }
