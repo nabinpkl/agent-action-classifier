@@ -21,17 +21,20 @@ TUPLES=$(aa_turn_tuples "$INPUT") || aa_fail_loud "could not read/parse the tran
 AREAS=$(aa_turn_touched_areas "$TUPLES")
 [ -n "$AREAS" ] || exit 0 # doc/chat-only turn: stay quiet
 
-# Build the per-area skill pointers for the review instruction.
+# Build the per-area skill pointers for the review instruction. Attention pointers only:
+# name the relevant skills, do not prescribe specific techniques (the skill is the source
+# of truth). /pydantic-models is intentionally not listed by default; it is a conditional
+# pointer in the pre-edit reminder for when data models are actually involved.
 SKILLS=""
 for a in $AREAS; do
 	case "$a" in
 	rust) SKILLS="$SKILLS /rust-coding" ;;
-	python) SKILLS="$SKILLS /python-dev-tooling /pydantic-models" ;;
+	python) SKILLS="$SKILLS /python-dev-tooling" ;;
 	esac
 done
 SKILLS="$SKILLS /source-code-organization"
 
-REASON="This turn changed: $AREAS. In your FINAL message, give an evidence-backed self-review, not a bare \"done\": (1) which skill nudges fired ($SKILLS) and HOW each concretely shaped the code, citing specific decisions (e.g. thiserror at the lib boundary, exhaustive match, borrowed not cloned); (2) what you CHANGED to comply with AGENTS.md and those skills, and what you deliberately did NOT change and why (justification); (3) if a rule looks stale versus the architecture, surface it to the user."
+REASON="This turn changed: $AREAS. In your FINAL message, give an evidence-backed self-review, not a bare \"done\": (1) which of the relevant skills ($SKILLS) you consulted and HOW each concretely shaped the change; (2) what you CHANGED to comply with AGENTS.md and those skills, and what you deliberately did NOT change and why (justification); (3) if a rule or nudge looks stale versus the architecture, surface it to the user."
 
 # Block-to-continue via exit 2 + reason on stderr. This is the cross-runtime mechanism:
 # Codex 0.137 rejects the JSON {decision:"block"} shape ("invalid stop hook JSON output",

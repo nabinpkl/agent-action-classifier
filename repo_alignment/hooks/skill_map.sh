@@ -1,10 +1,13 @@
 # shellcheck shell=sh
-# DATA for the repo-alignment hooks: which skill-area a file belongs to, and the terse
-# factual reminder for that area. Editing a nudge = editing this file. No logic here.
+# DATA for the repo-alignment hooks: which skill-area a file belongs to, and the
+# attention-pointer for that area. Editing a nudge = editing this file. No logic here.
 #
-# Reminder wording is FACTUAL + a skill pointer, light emphasis, < ~300 chars, one area.
-# Imperative / "SYSTEM:" phrasing can trip prompt-injection defenses (the model surfaces
-# the text instead of acting on it), so we state facts and point at the skill.
+# The reminder is a soft ATTENTION SHIFT to the relevant skills, NOT a prescription:
+# it names the area and points at the skills, and lets the skill be the source of truth.
+# It must NOT bake in specific technical mandates (no "use thiserror", no "Pydantic
+# strict+frozen") — those duplicate the skill, freeze a snapshot that goes stale, and
+# can push a wrong design where it does not apply. Imperative / "SYSTEM:" phrasing can
+# also trip prompt-injection defenses, so keep it a plain pointer.
 
 # path_to_area PATH -> echoes the skill-area for a file, or nothing if none applies.
 path_to_area() {
@@ -19,10 +22,10 @@ path_to_area() {
 reminder_for_area() {
 	case "$1" in
 	rust)
-		echo "Rust file. thiserror at the lib boundary; closed enums with exhaustive matches (no catch-all _); borrow over clone; clippy -D warnings. See /rust-coding and /source-code-organization."
+		echo "Editing a Rust file. Relevant skills: /rust-coding, /source-code-organization."
 		;;
 	python)
-		echo "Python file. uv/ruff/ty workflow; Pydantic v2 strict+frozen at boundaries; package by concept, no utils/helpers/manager. See /python-dev-tooling, /pydantic-models, /source-code-organization."
+		echo "Editing a Python file. Relevant skills: /python-dev-tooling, /source-code-organization (and /pydantic-models if you're defining data models)."
 		;;
 	*) echo "" ;;
 	esac
