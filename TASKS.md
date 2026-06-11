@@ -30,6 +30,13 @@ boundary; the matcher/precedence core is replaced by Cedar. Priority order:
    all 9 cases pass at 100% exact-match through Cedar. Wire + Python carry Cedar source +
    entity JSON. `cedar-policy` is now a real dep. FFI round-trip ~64µs/call incl. per-call
    Cedar parse (host caching is the optimization).
+   - [x] **Hardening prefactor (ADR-0018): schema-validate the org policy.** Added
+     `policy.cedarschema` as the contract; `Policy::from_sources` is the one path, validating
+     policies under Cedar `Strict` and parsing entities against the schema (typed
+     `PolicyLoadError`). Requests are schema-checked. Drift now fails loud at load instead of
+     silently non-matching, before #3 multiplies entity types. Wire + `decide` gained a
+     `schema` arg; FFI round-trip rose to ~310µs/call from the per-call schema validation
+     (host caching of the parsed `Policy` is the tracked optimization).
 3. [ ] **Org graph + inheritance resolution.** Cedar entities for org/team/role/user/agent;
    resolve an agent's effective policy by its position in the graph; policy-on-node cascade.
 4. [ ] **Live per-agent hook PEP.** Wire each agent's PreToolUse hook to the plane (the
