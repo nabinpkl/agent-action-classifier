@@ -71,6 +71,18 @@ impl ActionKind {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ResourceId(pub String);
 
+/// Host-derived facts about a shell-command action, surfaced to policy as the Cedar request
+/// `context` (ADR-0023). The host (the PEP) classifies the raw command line into a stable
+/// `kind`; the rule decides on that classification, never on the raw string, so the brittle
+/// parsing stays host-side and the policy stays declarative. `None` for actions that carry no
+/// such facts (a file write). The raw command itself never reaches the policy.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CommandFacts {
+    /// The host's classification of the command (e.g. `package_install`, `ephemeral_exec`,
+    /// `pipe_to_shell`). Exposed to policy as `context.command.kind`.
+    pub kind: String,
+}
+
 /// One normalized agent action: the unit the PDP decides on.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CanonicalAction {
@@ -82,4 +94,7 @@ pub struct CanonicalAction {
     pub seq: u64,
     pub at: Timestamp,
     pub source: Provenance,
+    /// Host-derived command facts for the Cedar `context`, set when the action is a shell
+    /// command the PEP classified; `None` otherwise (the request carries an empty context).
+    pub command: Option<CommandFacts>,
 }

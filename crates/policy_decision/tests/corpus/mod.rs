@@ -214,6 +214,9 @@ impl TryFrom<CaseDto> for Case {
                 provider: CORPUS_PROVIDER.to_string(),
                 raw_payload_id: CORPUS_RAW.to_string(),
             },
+            // No corpus case authors command facts yet; the execute/context cases land with
+            // the shell-command policy (the next arc, ADR-0023).
+            command: None,
         };
         let context = DecisionContext {
             approvals: dto

@@ -15,7 +15,7 @@ use std::str::FromStr;
 
 use cedar_policy::{
     Authorizer, Context as CedarContext, Decision as CedarDecision, Effect, EntityId,
-    EntityTypeName, EntityUid, PolicyId as CedarPolicyId, Request, Response,
+    EntityTypeName, EntityUid, PolicyId as CedarPolicyId, Request, Response, RestrictedExpression,
 };
 
 use crate::canonical_action::CanonicalAction;
@@ -53,10 +53,27 @@ fn build_request(action: &CanonicalAction, policy: &Policy) -> Request {
         euid(AGENT_TYPE, &action.principal.0),
         euid(ACTION_TYPE, action.action.as_cedar_id()),
         euid(SCOPE_TYPE, &action.resource.0),
-        CedarContext::empty(),
+        request_context(action),
         Some(policy.schema()),
     )
     .expect("cedar request from a canonical action is schema-valid by construction")
+}
+
+/// Build the Cedar request context from the action's host-derived command facts (ADR-0023):
+/// a classified shell command becomes `{ command: { kind } }`, the seam the rules read as
+/// `context.command.kind`; an action with no facts carries an empty context (the prior
+/// behavior for every file action). The schema validates the shape in `build_request`.
+fn request_context(action: &CanonicalAction) -> CedarContext {
+    let Some(facts) = &action.command else {
+        return CedarContext::empty();
+    };
+    let command = RestrictedExpression::new_record([(
+        "kind".to_string(),
+        RestrictedExpression::new_string(facts.kind.clone()),
+    )])
+    .expect("command record has one unique string field: well-formed by construction");
+    CedarContext::from_pairs([("command".to_string(), command)])
+        .expect("a single-key context record is valid by construction")
 }
 
 fn euid(type_name: &str, id: &str) -> EntityUid {
@@ -192,4 +209,88 @@ fn lane(policy: &Policy, id: &CedarPolicyId) -> Option<Lane> {
 
 fn annotation<'a>(policy: &'a Policy, id: &CedarPolicyId, key: &str) -> Option<&'a str> {
     policy.policies().policy(id).and_then(|p| p.annotation(key))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::canonical_action::{
+        ActionKind, AgentId, CommandFacts, Provenance, ResourceId, SessionId, Timestamp,
+    };
+
+    // A minimal plane whose only rule gates on the request context: a classified shell command
+    // requires approval. This is the seam ADR-0023 opens (build_request now carries
+    // `context.command.kind`); these tests prove a host-derived fact reaches Cedar and drives
+    // the verdict, in isolation from the PEP that will produce the fact.
+    const SCHEMA: &str = r"
+        entity Agent;
+        entity DataScope = { sensitivity: String, pii: Bool };
+        action execute appliesTo {
+            principal: [Agent],
+            resource: [DataScope],
+            context: { command: { kind: String } },
+        };
+    ";
+    const POLICY: &str = r#"
+        @id("approve-package-install")
+        @owasp("ASI05")
+        @outcome("requires_approval")
+        @lane("deterministic")
+        permit(principal, action == Action::"execute", resource)
+        when { context.command.kind == "package_install" };
+    "#;
+    const ENTITIES: &str = r#"[
+        { "uid": { "type": "Agent", "id": "agent-1" }, "attrs": {}, "parents": [] },
+        { "uid": { "type": "DataScope", "id": "shell" }, "attrs": { "sensitivity": "system", "pii": false }, "parents": [] }
+    ]"#;
+
+    fn execute_with(command: Option<CommandFacts>) -> CanonicalAction {
+        CanonicalAction {
+            principal: AgentId("agent-1".into()),
+            action: ActionKind::Execute,
+            resource: ResourceId("shell".into()),
+            session_id: SessionId("s1".into()),
+            seq: 0,
+            at: Timestamp(0),
+            source: Provenance {
+                provider: "test".into(),
+                raw_payload_id: "s1".into(),
+            },
+            command,
+        }
+    }
+
+    #[test]
+    fn classified_command_in_context_drives_the_verdict() {
+        let policy = Policy::from_sources(SCHEMA, POLICY, ENTITIES).expect("valid inline plane");
+        let decision = decide(
+            &execute_with(Some(CommandFacts {
+                kind: "package_install".into(),
+            })),
+            &policy,
+            &Context::default(),
+        );
+        // The requires_approval permit applied (so the context value reached Cedar), and with no
+        // approval it escalates.
+        assert_eq!(decision.verdict, Verdict::Escalate);
+        assert_eq!(decision.gate_type, GateType::Soft);
+        assert_eq!(
+            decision.policy_id.as_ref().map(|id| id.0.as_str()),
+            Some("approve-package-install")
+        );
+    }
+
+    #[test]
+    fn an_unnamed_command_kind_matches_no_policy() {
+        let policy = Policy::from_sources(SCHEMA, POLICY, ENTITIES).expect("valid inline plane");
+        let decision = decide(
+            &execute_with(Some(CommandFacts { kind: "ls".into() })),
+            &policy,
+            &Context::default(),
+        );
+        // A kind the policy does not name: no permit applies -> Cedar default-deny -> the host's
+        // default escalate citing no policy. Proves the context value is actually read, not ignored.
+        assert_eq!(decision.verdict, Verdict::Escalate);
+        assert_eq!(decision.policy_id, None);
+    }
 }

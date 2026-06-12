@@ -122,6 +122,8 @@ impl TryFrom<ActionDto> for CanonicalAction {
                 provider: dto.source.provider,
                 raw_payload_id: dto.source.raw_payload_id,
             },
+            // The FFI path carries no shell-command facts; that is the PEP's edge (ADR-0023).
+            command: None,
         })
     }
 }

@@ -135,6 +135,7 @@ mod tests {
                 provider: "claude".into(),
                 raw_payload_id: "s1".into(),
             },
+            command: None,
         }
     }
 

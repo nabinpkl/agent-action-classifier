@@ -95,6 +95,9 @@ pub fn canonical_action(
             provider: provider.to_string(),
             raw_payload_id: call.session_id.clone(),
         },
+        // v0 governs mutation tools, which carry no command facts; the shell-command path
+        // (ADR-0023) sets this when it lands.
+        command: None,
     }
 }
 
