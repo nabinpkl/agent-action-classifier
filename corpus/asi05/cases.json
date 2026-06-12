@@ -52,5 +52,35 @@
     "action": { "principal": "agent-1", "action": "delete", "resource": "telemetry" },
     "context": { "approvals": [] },
     "expect": { "verdict": "escalate", "gate_type": "soft", "owasp": null, "policy_id": null }
+  },
+  {
+    "name": "package_install_without_approval_escalates",
+    "action": { "principal": "agent-1", "action": "execute", "resource": "shell", "command": { "kind": "package_install" } },
+    "context": { "approvals": [] },
+    "expect": { "verdict": "escalate", "gate_type": "soft", "owasp": "ASI05", "policy_id": "approve-package-install" }
+  },
+  {
+    "name": "package_install_with_approval_allows_soft",
+    "action": { "principal": "agent-1", "action": "execute", "resource": "shell", "command": { "kind": "package_install" }, "at": 1000 },
+    "context": { "approvals": [{ "scope": "this_action", "granted_by": "alice", "expires": 2000 }] },
+    "expect": { "verdict": "allow", "gate_type": "soft", "owasp": "ASI05", "policy_id": "approve-package-install" }
+  },
+  {
+    "name": "ephemeral_exec_without_approval_escalates",
+    "action": { "principal": "agent-1", "action": "execute", "resource": "shell", "command": { "kind": "ephemeral_exec" } },
+    "context": { "approvals": [] },
+    "expect": { "verdict": "escalate", "gate_type": "soft", "owasp": "ASI05", "policy_id": "approve-ephemeral-exec" }
+  },
+  {
+    "name": "pipe_to_shell_without_approval_escalates",
+    "action": { "principal": "agent-1", "action": "execute", "resource": "shell", "command": { "kind": "pipe_to_shell" } },
+    "context": { "approvals": [] },
+    "expect": { "verdict": "escalate", "gate_type": "soft", "owasp": "ASI05", "policy_id": "approve-pipe-to-shell" }
+  },
+  {
+    "name": "unclassified_execute_defaults_to_escalate",
+    "action": { "principal": "agent-1", "action": "execute", "resource": "shell" },
+    "context": { "approvals": [] },
+    "expect": { "verdict": "escalate", "gate_type": "soft", "owasp": null, "policy_id": null }
   }
 ]

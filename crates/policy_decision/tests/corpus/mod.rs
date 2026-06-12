@@ -15,7 +15,8 @@ use anyhow::{Context as _, Result, anyhow, bail};
 use serde::Deserialize;
 
 use policy_decision::canonical_action::{
-    ActionKind, AgentId, CanonicalAction, Provenance, ResourceId, SessionId, Timestamp,
+    ActionKind, AgentId, CanonicalAction, CommandFacts, Provenance, ResourceId, SessionId,
+    Timestamp,
 };
 use policy_decision::context::{Approval, ApprovalScope, Context as DecisionContext, UserId};
 use policy_decision::decide;
@@ -167,6 +168,14 @@ struct ActionDto {
     resource: String,
     #[serde(default)]
     at: i64,
+    /// Host-derived command facts for an `execute` case; absent for file actions.
+    #[serde(default)]
+    command: Option<CommandDto>,
+}
+
+#[derive(Deserialize)]
+struct CommandDto {
+    kind: String,
 }
 
 #[derive(Deserialize, Default)]
@@ -214,9 +223,7 @@ impl TryFrom<CaseDto> for Case {
                 provider: CORPUS_PROVIDER.to_string(),
                 raw_payload_id: CORPUS_RAW.to_string(),
             },
-            // No corpus case authors command facts yet; the execute/context cases land with
-            // the shell-command policy (the next arc, ADR-0023).
-            command: None,
+            command: dto.action.command.map(|c| CommandFacts { kind: c.kind }),
         };
         let context = DecisionContext {
             approvals: dto

@@ -11,7 +11,17 @@ entity DataScope = {
     pii: Bool,
 };
 
-action read, write, share, delete, execute appliesTo {
+action read, write, share, delete appliesTo {
     principal: [Agent],
     resource: [DataScope],
+};
+
+// `execute` (a shell command) additionally carries the PEP's host-derived classification of
+// the command in `context.command.kind` (ADR-0023): the rules decide on that stable kind, never
+// on the raw command string. The attribute is optional so an unclassified execute still
+// validates (the rules guard with `context has command`).
+action execute appliesTo {
+    principal: [Agent],
+    resource: [DataScope],
+    context: { command?: { kind: String } },
 };
