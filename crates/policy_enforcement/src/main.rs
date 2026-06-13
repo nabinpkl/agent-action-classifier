@@ -26,7 +26,7 @@ use policy_decision::policy::Policy;
 
 use crate::command_classifier::CommandClassifier;
 use crate::decision_record::DecisionRecord;
-use crate::hook_response::HookResponse;
+use crate::hook_response::{HookResponse, Provider};
 use crate::normalize::ResourceMap;
 use crate::tool_call::ToolCall;
 
@@ -78,7 +78,10 @@ fn run() -> Result<HookResponse, String> {
         let record = DecisionRecord::build(&action, &decision, latency_ns, now().0);
         decision_record::append(path, &record)?;
     }
-    Ok(hook_response::from_decision(&decision))
+    Ok(hook_response::from_decision(
+        &decision,
+        Provider::parse(&args.provider),
+    ))
 }
 
 /// Resolve the governed `(resource scope, command facts)` for a tool call, or `None` if it

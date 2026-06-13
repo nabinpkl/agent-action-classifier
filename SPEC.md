@@ -48,7 +48,10 @@ The **PEP is realized as `enforce`**, a Rust command-hook binary
 ([ADR-0021](docs/adr/0021-pep-as-rust-command-hook-binary.md)), not the Python host: one
 artifact serves both Claude and Codex (their PreToolUse payloads converged), it normalizes the
 payload to the canonical action and `decide`s, and it returns allow (exit 0) / deny (exit 2 +
-reason) / ask (`permissionDecision` JSON). It governs **file mutations** (the path resolves to a
+reason) / ask. Deny and allow are cross-provider; **ask is provider-specific** — Claude's
+`permissionDecision:"ask"` dialog, but Codex (which rejects that schema) and an unknown provider
+degrade an escalate to an exit-2 block ([ADR-0024](docs/adr/0024-escalate-is-provider-specific-codex-degrades-to-block.md)).
+It governs **file mutations** (the path resolves to a
 `DataScope`) and **shell commands** (Bash normalizes to `execute`, the command line classified
 host-side into `context.command.kind`, gated by Cedar rules;
 [ADR-0023](docs/adr/0023-host-derives-attributes-cedar-decides.md)). It **fails closed** on

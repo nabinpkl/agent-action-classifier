@@ -8,8 +8,9 @@
 use std::io::Write as _;
 use std::process::{Command, Stdio};
 
-/// Run the built binary with `payload` on stdin against the asi05 plane; return (exit, out, err).
-fn run_enforce(payload: &str) -> (i32, String, String) {
+/// Run the built binary with `payload` on stdin against the asi05 plane as `provider`; return
+/// (exit, out, err).
+fn run_enforce(payload: &str, provider: &str) -> (i32, String, String) {
     let manifest = env!("CARGO_MANIFEST_DIR");
     let plane = format!("{manifest}/../../corpus/asi05");
     let resource_map = format!("{manifest}/../../corpus/asi05/resource_map.json");
@@ -26,7 +27,7 @@ fn run_enforce(payload: &str) -> (i32, String, String) {
             "--agent-id",
             "agent-1",
             "--provider",
-            "claude",
+            provider,
         ])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -64,7 +65,11 @@ fn pep_conformance_corpus() {
             Some(raw) => raw.to_string(),
             None => serde_json::to_string(&case["payload"]).expect("serialize payload"),
         };
-        let (code, stdout, stderr) = run_enforce(&payload);
+        let provider = case
+            .get("provider")
+            .and_then(|v| v.as_str())
+            .unwrap_or("claude");
+        let (code, stdout, stderr) = run_enforce(&payload, provider);
         let expect = &case["expect"];
 
         if let Some(want) = expect["exit"].as_i64()

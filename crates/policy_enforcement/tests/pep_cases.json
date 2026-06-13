@@ -50,6 +50,12 @@
     "expect": { "exit": 0, "stdout_empty": true }
   },
   {
+    "name": "codex_escalate_degrades_to_a_block_not_an_ask",
+    "payload": { "tool_name": "Bash", "tool_input": { "command": "npm install lodash" }, "session_id": "s5" },
+    "provider": "codex",
+    "expect": { "exit": 2, "stderr_contains": "APPROVAL REQUIRED" }
+  },
+  {
     "name": "malformed_payload_fails_closed",
     "payload_raw": "{not json",
     "expect": { "exit": 2, "stderr_contains": "failing closed" }
