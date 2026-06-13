@@ -13,6 +13,7 @@ fn run_enforce(payload: &str) -> (i32, String, String) {
     let manifest = env!("CARGO_MANIFEST_DIR");
     let plane = format!("{manifest}/../../corpus/asi05");
     let resource_map = format!("{manifest}/../../corpus/asi05/resource_map.json");
+    let command_signatures = format!("{manifest}/../../corpus/asi05/command_signatures.json");
 
     let mut child = Command::new(env!("CARGO_BIN_EXE_enforce"))
         .args([
@@ -20,6 +21,8 @@ fn run_enforce(payload: &str) -> (i32, String, String) {
             &plane,
             "--resource-map",
             &resource_map,
+            "--command-signatures",
+            &command_signatures,
             "--agent-id",
             "agent-1",
             "--provider",

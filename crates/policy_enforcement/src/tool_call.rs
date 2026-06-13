@@ -13,6 +13,9 @@ use serde::Deserialize;
 pub struct ToolCall {
     pub tool_name: String,
     pub target_path: Option<String>,
+    /// The raw command line for a shell tool (Claude/Codex `Bash`); `None` for non-command
+    /// tools. The classifier (ADR-0023) reduces it to a kind; the raw string never reaches policy.
+    pub command: Option<String>,
     pub session_id: String,
 }
 
@@ -47,6 +50,7 @@ impl ToolCall {
         Ok(ToolCall {
             tool_name: raw.tool_name,
             target_path,
+            command: raw.tool_input.command,
             session_id: raw.session_id,
         })
     }
@@ -86,11 +90,11 @@ mod tests {
     }
 
     #[test]
-    fn non_edit_tool_has_no_target_path() {
-        let payload =
-            r#"{"tool_name":"Bash","tool_input":{"command":"echo hi"},"session_id":"s3"}"#;
+    fn bash_tool_exposes_the_command_and_no_path() {
+        let payload = r#"{"tool_name":"Bash","tool_input":{"command":"npm install lodash"},"session_id":"s3"}"#;
         let call = ToolCall::parse(payload).unwrap();
         assert_eq!(call.target_path, None);
+        assert_eq!(call.command.as_deref(), Some("npm install lodash"));
     }
 
     #[test]

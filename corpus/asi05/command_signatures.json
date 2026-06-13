@@ -1,0 +1,32 @@
+[
+  { "pattern": "\\bnpm\\s+(install|i|add|ci)\\b", "kind": "package_install" },
+  { "pattern": "\\byarn\\s+(add|install|global\\s+add)\\b", "kind": "package_install" },
+  { "pattern": "\\bpnpm\\s+(install|i|add)\\b", "kind": "package_install" },
+  { "pattern": "\\bbun\\s+(install|i|add)\\b", "kind": "package_install" },
+  { "pattern": "\\buv\\s+(add|sync|pip\\s+install)\\b", "kind": "package_install" },
+  { "pattern": "\\bpipx\\s+install\\b", "kind": "package_install" },
+  { "pattern": "\\b(pip|pip3)\\s+install\\b", "kind": "package_install" },
+  { "pattern": "\\bpython3?\\s+-m\\s+pip\\s+install\\b", "kind": "package_install" },
+  { "pattern": "\\bcargo\\s+(install|add)\\b", "kind": "package_install" },
+  { "pattern": "\\bbrew\\s+install\\b", "kind": "package_install" },
+  { "pattern": "\\bgem\\s+install\\b", "kind": "package_install" },
+  { "pattern": "\\bgo\\s+install\\b", "kind": "package_install" },
+  { "pattern": "\\b(apt|apt-get|dnf|yum|pacman|apk|zypper)\\s+(install|add)\\b", "kind": "package_install" },
+
+  { "pattern": "\\bnpx\\b", "kind": "ephemeral_exec" },
+  { "pattern": "\\b(pnpm|yarn)\\s+dlx\\b", "kind": "ephemeral_exec" },
+  { "pattern": "\\bbunx\\b", "kind": "ephemeral_exec" },
+  { "pattern": "\\bbun\\s+x\\b", "kind": "ephemeral_exec" },
+  { "pattern": "\\buvx\\b", "kind": "ephemeral_exec" },
+  { "pattern": "\\buv\\s+tool\\s+run\\b", "kind": "ephemeral_exec" },
+  { "pattern": "\\bpipx\\s+run\\b", "kind": "ephemeral_exec" },
+  { "pattern": "\\bgo\\s+run\\s+\\S+@", "kind": "ephemeral_exec" },
+  { "pattern": "\\bdeno\\s+run\\b", "kind": "ephemeral_exec" },
+  { "pattern": "\\bgem\\s+exec\\b", "kind": "ephemeral_exec" },
+
+  { "pattern": "\\b(curl|wget)\\b.*\\|\\s*(sudo\\s+)?(sh|bash|zsh|python3?|node|ruby|perl)\\b", "kind": "pipe_to_shell" },
+  { "pattern": "\\b(sh|bash|zsh)\\s+-c\\s+[\"']?\\$\\(.*(curl|wget)\\b", "kind": "pipe_to_shell" },
+  { "pattern": "<\\(\\s*(curl|wget)\\b", "kind": "pipe_to_shell" },
+  { "pattern": "\\beval\\b.*\\b(curl|wget)\\b", "kind": "pipe_to_shell" },
+  { "pattern": "\\b(iex|Invoke-Expression)\\b.*(irm|iwr|Invoke-RestMethod|Invoke-WebRequest|curl|wget)", "kind": "pipe_to_shell" }
+]

@@ -1013,6 +1013,7 @@ version = "0.0.0"
 dependencies = [
  "globset",
  "policy_decision",
+ "regex",
  "serde",
  "serde_json",
 ]

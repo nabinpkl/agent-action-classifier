@@ -4,17 +4,24 @@
 //! org `DataScope`. The orchestrator (`main`) calls these in order so an ungoverned tool or
 //! path short-circuits before any policy is loaded.
 //!
-//! v0 governs mutation tools only (Edit/Write/MultiEdit/apply_patch -> `Write`). Read, Bash,
-//! and the share/delete kinds are deferred (ADR-0021): a Bash command's action and resource
-//! need command-line parsing, a separate rabbit hole.
+//! v0 governs mutation tools (Edit/Write/MultiEdit/apply_patch -> `Write`, resolved to a
+//! `DataScope` by file path) and shell commands (Bash -> `Execute`, classified by the command
+//! classifier into `context.command.kind`, ADR-0023). Read and the share/delete kinds remain
+//! deferred.
 
 use globset::{Glob, GlobSet, GlobSetBuilder};
 use policy_decision::canonical_action::{
-    ActionKind, AgentId, CanonicalAction, Provenance, ResourceId, SessionId, Timestamp,
+    ActionKind, AgentId, CanonicalAction, CommandFacts, Provenance, ResourceId, SessionId,
+    Timestamp,
 };
 use serde::Deserialize;
 
 use crate::tool_call::ToolCall;
+
+/// The single `DataScope` an `execute` (shell command) action resolves to: the shell/system
+/// surface. The command's meaning rides in `context.command.kind`, not the resource. Must match
+/// the `DataScope::"shell"` entity in the plane.
+pub const SHELL_SCOPE: &str = "shell";
 
 /// The action kind for a tool name, or `None` if the tool is ungoverned in v0. A new governed
 /// tool is a one-line change here, not new architecture (the action set is closed by design).
@@ -22,6 +29,7 @@ use crate::tool_call::ToolCall;
 pub fn action_for(tool_name: &str) -> Option<ActionKind> {
     match tool_name {
         "Write" | "Edit" | "MultiEdit" | "apply_patch" => Some(ActionKind::Write),
+        "Bash" => Some(ActionKind::Execute),
         _ => None,
     }
 }
@@ -72,13 +80,14 @@ impl ResourceMap {
     }
 }
 
-/// Build the canonical action from the resolved kind + scope and the call's facts. `seq` is 0
-/// (the stateful lane is deferred); `at` is the host clock; `raw_payload_id` is the session id
-/// as a v0 placeholder (the audit log, TASKS #5, will carry a per-call id).
+/// Build the canonical action from the resolved kind + scope, the optional command facts, and
+/// the call's facts. `seq` is 0 (the stateful lane is deferred); `at` is the host clock;
+/// `raw_payload_id` is the session id as a v0 placeholder (the audit log carries it).
 #[must_use]
 pub fn canonical_action(
     action: ActionKind,
     scope: &str,
+    command: Option<CommandFacts>,
     call: &ToolCall,
     agent_id: &str,
     provider: &str,
@@ -95,9 +104,8 @@ pub fn canonical_action(
             provider: provider.to_string(),
             raw_payload_id: call.session_id.clone(),
         },
-        // v0 governs mutation tools, which carry no command facts; the shell-command path
-        // (ADR-0023) sets this when it lands.
-        command: None,
+        // `Some` for a classified shell command (ADR-0023), `None` for a file mutation.
+        command,
     }
 }
 
@@ -112,12 +120,12 @@ mod tests {
     ]"#;
 
     #[test]
-    fn mutation_tools_map_to_write_others_are_ungoverned() {
+    fn mutation_tools_map_to_write_bash_to_execute_others_ungoverned() {
         assert_eq!(action_for("Write"), Some(ActionKind::Write));
         assert_eq!(action_for("Edit"), Some(ActionKind::Write));
         assert_eq!(action_for("apply_patch"), Some(ActionKind::Write));
+        assert_eq!(action_for("Bash"), Some(ActionKind::Execute));
         assert_eq!(action_for("Read"), None);
-        assert_eq!(action_for("Bash"), None);
     }
 
     #[test]

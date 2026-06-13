@@ -48,8 +48,12 @@ The **PEP is realized as `enforce`**, a Rust command-hook binary
 ([ADR-0021](docs/adr/0021-pep-as-rust-command-hook-binary.md)), not the Python host: one
 artifact serves both Claude and Codex (their PreToolUse payloads converged), it normalizes the
 payload to the canonical action and `decide`s, and it returns allow (exit 0) / deny (exit 2 +
-reason) / ask (`permissionDecision` JSON). It **fails closed** on internal error (the binary owns
-its exit code). Per-call cost is ~5ms measured (process spawn + plane compile + ~15µs decide);
+reason) / ask (`permissionDecision` JSON). It governs **file mutations** (the path resolves to a
+`DataScope`) and **shell commands** (Bash normalizes to `execute`, the command line classified
+host-side into `context.command.kind`, gated by Cedar rules;
+[ADR-0023](docs/adr/0023-host-derives-attributes-cedar-decides.md)). It **fails closed** on
+internal error, and on a governed call whose config map is missing (the binary owns its exit
+code). Per-call cost is ~5ms measured (process spawn + plane compile + ~15µs decide);
 the warm-handle HTTP sidecar is the roadmap for when per-call rate or policy-set size makes that
 material. `codex exec` fires no hooks (interactive Codex only); the Python host remains for the
 programmatic FFI and the future judge.

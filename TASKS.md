@@ -59,8 +59,9 @@ boundary; the matcher/precedence core is replaced by Cedar. Priority order:
    exit code, unlike Claude `type:http`). Chosen over the warm-handle HTTP sidecar (no daemon, one
    artifact) at ~5ms/call measured; the sidecar stays the documented latency roadmap. Reuses the
    asi05 plane via a new `resource_map.json` (glob->scope), so the demo needs zero new policy. v0
-   governs mutation tools only. Probe-verified groundwork: a nested git repo (`experiments/`)
-   isolates hooks for both providers, and `codex exec` fires no hooks (interactive only).
+   governs mutation tools (extended to shell commands in #6). Probe-verified groundwork: a nested
+   git repo (`experiments/`) isolates hooks for both providers, and `codex exec` fires no hooks
+   (interactive only).
 5. [x] **Decision-log record (ADR-0022).** Done in the `enforce` binary: given `--audit-log
    <path>` it appends one OPA/AAT-shaped JSON record per *governed* decision (request + verdict +
    gate_type + owasp + policy_id + lane + rationale + measured `latency_ns` + null `prev_hash`).
@@ -68,7 +69,18 @@ boundary; the matcher/precedence core is replaced by Cedar. Priority order:
    round-trip. **Fails closed** on a write failure (unrecordable decision is denied); out-of-scope
    calls leave no record. Deferred-with-triggers: the SHA-256 `prev_hash` chain + tamper-evident
    store, a central (vs per-agent) sink, per-call provenance id, rotation/retention.
-6. [ ] **Semantic judge lane:** host LLM judge for `Escalate`, graded eval (80-90%, never
+6. [x] **Shell-command lane (ADR-0023).** `enforce` now governs Bash (-> `execute`): the host
+   classifies the command line into a stable kind via operator-tunable `command_signatures.json`
+   (regex -> kind), carried into the Cedar request as `context.command.kind`; the rules decide on
+   the classification, never the raw string. Three kinds, all `requires_approval` (escalate ->
+   ask) with distinct `@id`: `package_install` (npm/yarn/pnpm/bun/uv/pip/cargo/brew/gem/go +
+   system), `ephemeral_exec` (npx/dlx/bunx/uvx/pipx run/`go run pkg@v`/deno run/gem exec),
+   `pipe_to_shell` (curl|sh and kin). Opens the `CedarContext::empty()` seam: `CommandFacts` on
+   the canonical action maps to context at the engine edge. Fails closed on a Bash call wired
+   without `--command-signatures`. Brittleness ceiling (obfuscation, split download-then-run)
+   stays the ADR-0003/trajectory gap. `pipe_to_shell` is the first candidate to graduate to a
+   hard forbid.
+7. [ ] **Semantic judge lane:** host LLM judge for `Escalate`, graded eval (80-90%, never
    exact-match).
 
 ## Later (deferred, with triggers in PRD/SPEC)
