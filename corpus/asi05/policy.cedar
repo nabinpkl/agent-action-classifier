@@ -35,9 +35,10 @@ when { resource.pii == true };
 
 // --- Shell-command governance (ADR-0023) -------------------------------------------------
 // The PEP classifies a Bash command into a stable `context.command.kind`; these rules gate on
-// that classification, never on the raw command string. All three require approval in v0
-// (escalate -> ask): a shell command of these kinds is surfaced to a human, who decides. Each
-// guards `context has command` so an unclassified execute simply matches nothing.
+// that classification, never on the raw command string. Two kinds require approval (escalate
+// -> ask): the command is surfaced to a human, who decides. The third (pipe-to-shell) is a hard
+// forbid -- approval cannot make unknown remote bytes safe (ADR-0026). Each rule guards
+// `context has command` so an unclassified execute simply matches nothing.
 
 // Installing a dependency or tool (npm/yarn/pnpm/bun/uv/pip/cargo/brew/gem/go ... add|install)
 // runs install-time/build scripts = code execution, even on a plain lockfile restore.
@@ -58,11 +59,11 @@ permit(principal, action == Action::"execute", resource)
 when { context has command && context.command.kind == "ephemeral_exec" };
 
 // Piping a fetched script into an interpreter (curl|sh, wget|bash, sh -c "$(curl ...)"):
-// arbitrary remote code with no registry or provenance. The first candidate to graduate from
-// ask to a hard forbid.
-@id("approve-pipe-to-shell")
+// arbitrary remote code with no registry, pin, or provenance -- and approval cannot make it
+// safe, because the bytes are unknown until they already run. So this is a hard forbid (deny,
+// unoverridable by approval, cross-provider), the first command kind to graduate from ask
+// (ADR-0026). Like deny-secret-write, it carries no @outcome/@lane: a forbid is a terminal deny.
+@id("forbid-pipe-to-shell")
 @owasp("ASI05")
-@outcome("requires_approval")
-@lane("deterministic")
-permit(principal, action == Action::"execute", resource)
+forbid(principal, action == Action::"execute", resource)
 when { context has command && context.command.kind == "pipe_to_shell" };

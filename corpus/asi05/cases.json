@@ -72,10 +72,16 @@
     "expect": { "verdict": "escalate", "gate_type": "soft", "owasp": "ASI05", "policy_id": "approve-ephemeral-exec" }
   },
   {
-    "name": "pipe_to_shell_without_approval_escalates",
+    "name": "pipe_to_shell_is_hard_denied",
     "action": { "principal": "agent-1", "action": "execute", "resource": "shell", "command": { "kind": "pipe_to_shell" } },
     "context": { "approvals": [] },
-    "expect": { "verdict": "escalate", "gate_type": "soft", "owasp": "ASI05", "policy_id": "approve-pipe-to-shell" }
+    "expect": { "verdict": "deny", "gate_type": "hard", "owasp": "ASI05", "policy_id": "forbid-pipe-to-shell" }
+  },
+  {
+    "name": "pipe_to_shell_is_unoverridable_by_approval",
+    "action": { "principal": "agent-1", "action": "execute", "resource": "shell", "command": { "kind": "pipe_to_shell" }, "at": 1000 },
+    "context": { "approvals": [ { "scope": "this_action", "granted_by": "alice", "expires": 9999 } ] },
+    "expect": { "verdict": "deny", "gate_type": "hard", "owasp": "ASI05", "policy_id": "forbid-pipe-to-shell" }
   },
   {
     "name": "unclassified_execute_defaults_to_escalate",
