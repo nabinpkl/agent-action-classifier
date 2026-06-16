@@ -2,8 +2,8 @@
 //! types, mapping at this edge. The org policy is a Cedar schema + policy source + entity
 //! store, validated as a unit by `Policy::from_sources` (ADR-0017, ADR-0018); only the cases
 //! (actions + context + expectations) need bespoke DTOs. Each corpus is one named directory
-//! (e.g. `asi05`, `org_graph`); `load_corpus` is generic over the name, and `check` replays a
-//! loaded corpus through `decide` and returns the exact-match failures.
+//! (`asi05` in v1; `load_corpus` is generic over the name so a future plane plugs in here), and
+//! `check` replays a loaded corpus through `decide` and returns the exact-match failures.
 //!
 //! This is test/bench harness, not library API: nobody branches on its failure modes,
 //! so it uses `anyhow` (per the rust-coding skill, anyhow for glue). The DTOs mirror the

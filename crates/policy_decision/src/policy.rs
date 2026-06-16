@@ -78,7 +78,7 @@ impl fmt::Display for PolicyLoadError {
 impl std::error::Error for PolicyLoadError {}
 
 /// The authored org policy: the Cedar schema, the policy set, and the entity store (data-
-/// scope attributes now; the org graph with inheritance lands in TASKS #3). All three are
+/// scope attributes; v1 is a flat principal, no org-graph inheritance — ADR-0025). All three are
 /// supplied by the central plane (PAP); the loader/binding parses them at the edge via
 /// [`Policy::from_sources`], the one validated construction path.
 pub struct Policy {

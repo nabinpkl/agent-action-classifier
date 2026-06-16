@@ -87,10 +87,12 @@ attributed (ABAC), which is why Cedar (entity hierarchy + ABAC) is the fit.
 
 ### Org model and policies (PAP)
 
-The central plane holds two things Cedar consumes:
+The central plane holds two things Cedar consumes. **v1 is flat** ([ADR-0025](docs/adr/0025-v1-is-flat-remove-org-graph-plane.md)):
+a single `Agent` principal with no parents; the org-graph hierarchy below is the deferred model
+(Cedar evaluates it natively when a real multi-agent org exists), not what v1 wires.
 
 ```
-Entities {                  // the org graph
+Entities {                  // v1: flat Agent + DataScope. The org graph below is deferred.
   org, team, role, user, agent nodes;
   parent edges (agent in user in team in org) = inheritance;
   attributes per entity (data-scope membership, tenant, ...).

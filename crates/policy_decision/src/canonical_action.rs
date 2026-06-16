@@ -67,7 +67,7 @@ impl ActionKind {
 }
 
 /// The data scope a tool call touches (the Cedar resource: `DataScope::"<id>"`). Its
-/// attributes (sensitivity, pii, later org-graph parents) live in the entity store.
+/// attributes (sensitivity, pii) live in the entity store.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ResourceId(pub String);
 

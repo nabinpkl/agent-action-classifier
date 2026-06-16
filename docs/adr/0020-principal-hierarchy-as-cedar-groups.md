@@ -1,7 +1,9 @@
 # ADR-0020: Model the principal hierarchy as Cedar entity groups
 
 Date: 2026-06-11
-Status: Accepted
+Status: Superseded by [ADR-0025](0025-v1-is-flat-remove-org-graph-plane.md) (v1 is flat; the
+`corpus/org_graph/` plane is removed). The finding that Cedar evaluates the hierarchy natively
+still holds — v1 simply does not use it.
 
 ## Context
 [ADR-0017](0017-adopt-cedar-engine-org-modeled-central-plane.md) committed to modeling

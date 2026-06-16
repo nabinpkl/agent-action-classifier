@@ -43,14 +43,14 @@ boundary; the matcher/precedence core is replaced by Cedar. Priority order:
      path. Python API is `Policy.compile(schema, policy, entities).decide(action, context)`.
      Per-decision FFI back to ~20µs/call (compile paid once per load); the pure core was
      already split, so the fix was binding-only.
-3. [x] **Org graph + inheritance resolution (ADR-0020).** Done as data, not engine code:
-   Cedar evaluates hierarchy natively (`parents` + `in` + deny-overrides), so the pure core is
-   untouched. `corpus/org_graph/` declares `Org<-Team<-User<-Agent` membership plus a
-   cross-cutting `Role`, with node-attached + RBAC policies; 9 conformance cases prove cascade,
-   sub-node override (same write Allowed for an eng agent, Denied for a sales agent), RBAC,
-   team-scoped approval, and an org-wide hard deny — all 100% exact-match. Loader generalized to
-   `load_corpus(name)`. Deferred-with-triggers: effective-entity slicing, per-agent policy
-   slicing, multi-org, ReBAC, principal-side ABAC (ADR-0020).
+3. [~] **Org graph + inheritance resolution (ADR-0020) — built, then removed in v1 (ADR-0025).**
+   Originally done as data (Cedar evaluates `parents` + `in` + deny-overrides natively): a
+   `corpus/org_graph/` plane with `Org<-Team<-User<-Agent` + `Role`, 9 cases proving cascade,
+   sub-node override, RBAC, team-scoped approval, and an org-wide hard deny at 100% exact-match.
+   But the plane was wired to nothing live (the PEP loads the flat `asi05`), and v1 is a flat
+   single principal, so the hierarchy was speculative generality in a fixture. **Removed** the
+   plane + its conformance test (ADR-0025); `load_corpus(name)` stays generic as the seam a future
+   plane plugs into. Re-introduce when a real multi-agent org exists (trigger in ADR-0025).
 4. [x] **Live per-agent hook PEP (ADR-0021).** Done as `enforce`, a Rust command-hook binary
    (`crates/policy_enforcement`) over the core: it normalizes a provider PreToolUse payload to
    the canonical action, `decide`s it against the org policy, and returns the verdict (allow=exit

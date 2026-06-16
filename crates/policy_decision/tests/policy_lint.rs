@@ -64,7 +64,7 @@ fn every_corpus_policy_validates_with_no_warnings() {
     }
 
     assert!(
-        planes >= 2,
-        "expected at least the asi05 + org_graph planes, found {planes}"
+        planes >= 1,
+        "expected at least the asi05 plane, found {planes}"
     );
 }
